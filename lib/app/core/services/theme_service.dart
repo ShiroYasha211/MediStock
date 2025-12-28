@@ -17,7 +17,18 @@ class ThemeService {
 
   /// التبديل بين الوضع الفاتح والداكن.
   void switchTheme() {
-    Get.changeThemeMode(_loadThemeFromBox() ? ThemeMode.light : ThemeMode.dark);
-    _saveThemeToBox(!_loadThemeFromBox());
+    // --- ✅ الحل: الطريقة الأبسط والأكثر أماناً ---
+
+    // 1. اقرأ الحالة الحالية مرة واحدة
+    final isCurrentlyDark = Get.isDarkMode;
+
+    // 2. اعكس الحالة
+    if (isCurrentlyDark) {
+      Get.changeThemeMode(ThemeMode.light);
+      _saveThemeToBox(false);
+    } else {
+      Get.changeThemeMode(ThemeMode.dark);
+      _saveThemeToBox(true);
+    }
   }
 }

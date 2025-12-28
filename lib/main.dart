@@ -1,3 +1,5 @@
+import 'package:get_storage/get_storage.dart';
+import 'package:medistock/app/core/services/theme_service.dart';
 import 'package:medistock/app/core/theme/app_theme.dart';
 import 'package:medistock/app/modules/main/views/main_view.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 Future<void> main()async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
+  await GetStorage.init();
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1400, 820), // الحجم الأولي للنافذة
     minimumSize: Size(1360, 800), // أقل حجم مسموح به
@@ -39,8 +42,8 @@ class MyApp extends StatelessWidget {
       title: 'MediStock',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-
-      // 2. تغيير الصفحة الرئيسية إلى الشاشة الرئيسية للتطبيق
+      themeMode: ThemeService().theme,
+      darkTheme: AppTheme.darkTheme,
       home: const MainView(),
     );
   }

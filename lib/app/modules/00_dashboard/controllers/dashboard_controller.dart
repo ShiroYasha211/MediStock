@@ -37,7 +37,7 @@ class DashboardController extends GetxController {
   void onReady() {
     super.onReady();
     ever(Get.routing.obs, (routing) {
-      if (routing?.current == '/') {
+      if (routing.current == '/') {
         print('Returned to Dashboard. Fetching data...'); // لغرض الاختبار
         fetchDashboardData();
       }

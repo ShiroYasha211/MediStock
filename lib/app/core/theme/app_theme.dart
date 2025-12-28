@@ -115,6 +115,116 @@ class AppTheme {
     );
   }
 
+  static ThemeData get darkTheme {
+    // تعريف ألوان الوضع الداكن
+    const Color darkPrimary = Color(0xFF1ABC9C); // Teal as primary
+    const Color darkSidebarBg = Color(0xFF2C3E50); // Dark Blue for Sidebar
+    const Color darkBackground = Color(0xFF233140); // Darker Content Background
+    const Color darkSurface = Color(0xFF2C3E50); // Dark Blue for Cards
+    const Color darkOnSurface = Color(0xFFECF0F1); // Light Text Color
+    const Color darkOnSurfaceVariant = Color(0xFF95A5A6); // Greyish Text
+
+    return ThemeData(
+      useMaterial3: true,
+      fontFamily: _fontFamily,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: darkBackground,
+
+      colorScheme: ColorScheme(
+        brightness: Brightness.dark,
+        primary: darkPrimary,
+        onPrimary: Colors.black,
+        secondary: _secondary,
+        onSecondary: Colors.black,
+        error: _error,
+        onError: Colors.white,
+        background: darkBackground,
+        onBackground: darkOnSurface,
+        surface: darkSurface,
+        onSurface: darkOnSurface,
+        surfaceVariant: const Color(0xFF34495E), // For dividers and borders
+        onSurfaceVariant: darkOnSurfaceVariant,
+      ),
+
+      textTheme: _textTheme.apply( // تطبيق الألوان الداكنة على النصوص
+        bodyColor: darkOnSurface,
+        displayColor: darkOnSurface,
+      ),
+
+      appBarTheme: AppBarTheme(
+        backgroundColor: darkSurface, // AppBar will be dark
+        foregroundColor: darkOnSurface, // Text and icons will be light
+        elevation: 1,
+        shadowColor: Colors.black.withOpacity(0.2),
+        centerTitle: false,
+        titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: darkOnSurface,
+        ),
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: darkPrimary,
+          foregroundColor: Colors.black, // Dark text on teal button
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: _fontFamily),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF34495E)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF34495E)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: darkPrimary, width: 2),
+        ),
+        labelStyle: const TextStyle(color: darkOnSurfaceVariant),
+        floatingLabelStyle: const TextStyle(color: darkPrimary),
+        hintStyle: const TextStyle(color: darkOnSurfaceVariant),
+      ),
+
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.1),
+        color: darkSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: darkSidebarBg,
+        indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        indicatorColor: darkPrimary.withOpacity(0.2),
+        selectedIconTheme: const IconThemeData(color: darkPrimary),
+        unselectedIconTheme: IconThemeData(color: darkOnSurfaceVariant.withOpacity(0.8)),
+        selectedLabelTextStyle: const TextStyle(
+          color: darkPrimary,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Cairo',
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          color: darkOnSurfaceVariant,
+          fontFamily: 'Cairo',
+        ),
+      ),
+    );
+  }
+
   // Same TextTheme as before, but it will inherit the new colors
   static TextTheme get _textTheme => const TextTheme(
     displayLarge: TextStyle(fontSize: 57, fontWeight: FontWeight.w800, color: _onSurface),

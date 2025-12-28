@@ -5,6 +5,7 @@ import 'package:medistock/app/modules/01_items_management/views/items_view.dart'
 import 'package:medistock/app/modules/02_orders_management/views/oreders_view.dart';
 import 'package:medistock/app/modules/03_beneficiaries_mangement/views/beneficiaries_view.dart';
 import 'package:medistock/app/modules/04_transactions_management/views/transactions_view.dart';
+import 'package:medistock/app/modules/05_settings_management/views/settings_view.dart';
 import '../controllers/main_controller.dart';
 
 // Same temporary pages
@@ -14,7 +15,7 @@ final List<Widget> _mainPages = [
   const OrdersView(),
   const TransactionsView(),
   const BeneficiariesView(),
-  const Center(child: Text('الإعدادات', style: TextStyle(fontSize: 24))),
+  const SettingsView(),
 ];
 
 class MainView extends StatelessWidget {
@@ -89,10 +90,17 @@ class MainView extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       // Using an AnimatedSwitcher for a smooth transition between pages
-                      child: Obx(() => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: _mainPages[controller.selectedIndex.value],
-                      )),
+                      // --- ✅ الحل: استخدام GetX<MainController> بدلاً من Obx ---
+                      child: Obx(() {
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: KeyedSubtree(
+                            // إعطاء مفتاح فريد لكل صفحة يحل مشكلة إعادة البناء
+                            key: ValueKey<int>(controller.selectedIndex.value),
+                            child: _mainPages[controller.selectedIndex.value],
+                          ),
+                        );
+                      }),
                     ),
                   ),
                 ],
