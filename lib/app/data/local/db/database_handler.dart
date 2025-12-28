@@ -89,11 +89,10 @@ class DatabaseHandler {
       print("Database upgrade to version 3 completed.");
     }
 
-    if (oldVersion < 4)
-     {
-    print("Database upgrading from version 3 to 4...");
-    await _createDisbursementOrdersTable(db);
-    print("Database upgrade to version 4 completed.");
+    if (oldVersion < 4) {
+      print("Database upgrading from version 3 to 4...");
+      await _createDisbursementOrdersTable(db);
+      print("Database upgrade to version 4 completed.");
     }
     if (oldVersion < 5) {
       print("Database upgrading from version 4 to 5...");
@@ -112,8 +111,6 @@ class DatabaseHandler {
     }
   }
 
-
-
   Future<void> _createUnitsTableAndSeed(Database db) async {
     // أ. إنشاء جدول الوحدات
     await db.execute('''
@@ -129,6 +126,7 @@ class DatabaseHandler {
     await db.insert('units', {'name': 'حبة'});
     await db.insert('units', {'name': 'كرتون'});
   }
+
   // --- ✅ جديد: دالة لإنشاء جدول الأشكال الدوائية ---
   Future<void> _createItemFormsTableAndSeed(Database db) async {
     // أ. إنشاء جدول الأشكال الدوائية
@@ -163,6 +161,7 @@ class DatabaseHandler {
       )
     ''');
   }
+
   // --- ✅ جديد: دالة لإنشاء جدول المستفيدين ---
   Future<void> _createBeneficiariesTable(Database db) async {
     await db.execute('''
@@ -176,6 +175,7 @@ class DatabaseHandler {
       )
     ''');
   }
+
   // --- ✅ جديد: دالة لإنشاء جدول عمليات الصرف ---
   Future<void> _createDisbursementTransactionsTable(Database db) async {
     await db.execute('''
@@ -192,6 +192,7 @@ class DatabaseHandler {
       )
     ''');
   }
+
   // --- ✅ جديد: دالة لإنشاء جدول عمليات الإرجاع ---
   Future<void> _createReturnTransactionsTable(Database db) async {
     await db.execute('''
@@ -207,6 +208,12 @@ class DatabaseHandler {
     ''');
   }
 
-
-
+  /// إغلاق قاعدة البيانات للسماح بعمليات مثل الاستعادة
+  Future<void> closeDatabase() async {
+    if (_database != null && _database!.isOpen) {
+      await _database!.close();
+      _database = null; // تصفير المتغير لإجبار إعادة الفتح لاحقاً
+      print('Database closed successfully.');
+    }
+  }
 }
