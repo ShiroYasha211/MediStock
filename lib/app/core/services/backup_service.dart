@@ -2,16 +2,22 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:path_provider/path_provider.dart'; // ✅ إضافة هذا الاستيراد
 import 'package:medistock/app/data/local/db/database_handler.dart';
 
 class BackupService {
+  /// دالة مساعدة للحصول على مسار قاعدة البيانات الجديد
+  Future<String> _getDbPath() async {
+    final Directory appDocDir = await getApplicationDocumentsDirectory();
+    final String dbFolder = join(appDocDir.path, 'MediStock_DB');
+    return join(dbFolder, 'medistock.db');
+  }
+
   /// يقوم بإنشاء نسخة احتياطية من قاعدة البيانات
   Future<bool> createBackup() async {
     try {
-      // 1. الحصول على مسار قاعدة البيانات الحالية
-      final dbFolder = await getDatabasesPath();
-      final dbPath = join(dbFolder, 'medistock.db');
+      // 1. استخدام المسار الجديد
+      final dbPath = await _getDbPath();
       final dbFile = File(dbPath);
 
       if (!await dbFile.exists()) {
@@ -23,8 +29,6 @@ class BackupService {
         return false;
       }
 
-      // 2. السماح للمستخدم باختيار مكان الحفظ واسم الملف
-      // نستخدم التوقيت الحالي كاسم افتراضي
       final String fileName =
           'medistock_backup_${DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first}.db';
 
@@ -36,11 +40,9 @@ class BackupService {
       );
 
       if (outputFile == null) {
-        // المستخدم ألغى العملية
         return false;
       }
 
-      // 3. نسخ الملف إلى المكان المحدد
       await dbFile.copy(outputFile);
 
       Get.snackbar(
@@ -61,10 +63,8 @@ class BackupService {
   }
 
   /// يقوم باستعادة نسخة احتياطية
-  /// يقوم باستعادة نسخة احتياطية
   Future<bool> restoreBackup() async {
     try {
-      // 1. اختيار ملف النسخة الاحتياطية
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         dialogTitle: 'اختر ملف النسخة الاحتياطية',
         type: FileType.custom,
@@ -77,14 +77,13 @@ class BackupService {
 
       final String backupPath = result.files.single.path!;
 
-      // 2. الحصول على مسار قاعدة البيانات الحالية
-      final dbFolder = await getDatabasesPath();
-      final dbPath = join(dbFolder, 'medistock.db');
+      // 1. استخدام المسار الجديد
+      final dbPath = await _getDbPath();
 
-      // 3. ✅ إغلاق قاعدة البيانات الحالية لفك القفل عنها
+      // 2. إغلاق قاعدة البيانات
       await DatabaseHandler.instance.closeDatabase();
 
-      // 4. استبدال الملف الحالي بالنسخة الاحتياطية
+      // 3. استبدال الملف
       await File(backupPath).copy(dbPath);
 
       Get.defaultDialog(
@@ -93,8 +92,7 @@ class BackupService {
             'تم استعادة النسخة الاحتياطية بنجاح. يرجى إعادة تشغيل التطبيق لتطبيق التغييرات.',
         textConfirm: 'حسناً',
         onConfirm: () {
-          Get.back(); // إغلاق الحوار
-          // يمكن هنا إضافة كود لإعادة تشغيل التطبيق أو الخروج منه إذا لزم الأمر
+          Get.back();
         },
       );
 

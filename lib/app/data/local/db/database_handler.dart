@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DatabaseHandler {
@@ -15,14 +18,21 @@ class DatabaseHandler {
   }
 
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'medistock.db');
+    // استخدام مسار "المستندات" أو "Support" لضمان صلاحية الكتابة في ويندوز
+    final Directory appDocDir = await getApplicationDocumentsDirectory();
+    final String dbFolder = join(appDocDir.path, 'MediStock_DB');
 
+    // التأكد من وجود المجلد، وإنشاؤه إذا لم يكن موجوداً
+    await Directory(dbFolder).create(recursive: true);
+    final path = join(dbFolder, 'medistock.db');
+
+    // طباعة المسار للتأكد (اختياري)
+    print('Database Path: $path');
     return await openDatabase(
       path,
       version: _dbVersion,
       onCreate: _onCreate,
-      onUpgrade: _onUpgrade, // <--- تمت إضافة هذه الدالة
+      onUpgrade: _onUpgrade,
     );
   }
 

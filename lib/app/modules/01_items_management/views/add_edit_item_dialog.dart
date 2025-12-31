@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart'; // سنحتاجه لتنسيق التواريخ
 import '../../../data/local/models/item_model.dart';
 import '../controllers/items_controller.dart';
 import 'manage_lookups_dialog.dart';
@@ -31,28 +30,24 @@ class AddEditItemDialog extends StatelessWidget {
       scrollable: true,
       title: Row(
         children: [
-          Icon(isEditMode ? Icons.edit_note : Icons.add_box_outlined,
-              color: theme.colorScheme.primary),
+          Icon(
+            isEditMode ? Icons.edit_note : Icons.add_box_outlined,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(width: 10),
           Text(isEditMode ? 'تعديل بيانات صنف' : 'إضافة صنف جديد'),
         ],
       ),
       // استخدام SizedBox لتحديد عرض الحوار
       content: SizedBox(
-        width: MediaQuery
-            .of(context)
-            .size
-            .width * 0.6, // 60% من عرض الشاشة
+        width: MediaQuery.of(context).size.width * 0.6, // 60% من عرض الشاشة
         child: Form(
           key: controller.formKey,
           child: _buildFormContent(controller, theme),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('إلغاء'),
-        ),
+        TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
         ElevatedButton.icon(
           onPressed: () {
             controller.saveItem(itemToEdit);
@@ -80,13 +75,19 @@ class AddEditItemDialog extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
-                  _buildTextField(controller.nameController, 'الاسم التجاري',
-                      Icons.business_center_outlined),
+                  _buildTextField(
+                    controller.nameController,
+                    'الاسم التجاري',
+                    Icons.business_center_outlined,
+                  ),
                   const SizedBox(height: 16),
                   // --- 4. إضافة حقل الاسم العلمي ---
-                  _buildTextField(controller.scientificNameController,
-                      'الاسم العلمي (اختياري)', Icons.science_outlined,
-                      isRequired: false),
+                  _buildTextField(
+                    controller.scientificNameController,
+                    'الاسم العلمي (اختياري)',
+                    Icons.science_outlined,
+                    isRequired: false,
+                  ),
                 ],
               ),
             ),
@@ -98,20 +99,27 @@ class AddEditItemDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-                child: _buildTextField(controller.itemCodeController,
-                    'كود الصنف', Icons.qr_code_2,
-                    isRequired: false)),
+              child: _buildTextField(
+                controller.itemCodeController,
+                'كود الصنف',
+                Icons.qr_code_2,
+                isRequired: false,
+              ),
+            ),
             const SizedBox(width: 16),
             Expanded(
-                child: _buildTextField(controller.batchNumberController,
-                    'رقم التشغيلة', Icons.tag,
-                    isRequired: false)),
+              child: _buildTextField(
+                controller.batchNumberController,
+                'رقم التشغيلة',
+                Icons.tag,
+                isRequired: false,
+              ),
+            ),
             const SizedBox(width: 16),
             // --- 5. إضافة القائمة المنسدلة للوحدات ---
             Expanded(child: _buildUnitsDropdown(controller, theme)),
             const SizedBox(width: 16),
-            Expanded(child: _buildItemFormsDropdown(controller
-                , theme)),
+            Expanded(child: _buildItemFormsDropdown(controller, theme)),
           ],
         ),
         const Divider(height: 32),
@@ -120,28 +128,41 @@ class AddEditItemDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-                child: _buildTextField(controller.quantityController, 'الكمية',
-                    Icons.onetwothree,
-                    isNumber: true)),
+              child: _buildTextField(
+                controller.quantityController,
+                'الكمية',
+                Icons.onetwothree,
+                isNumber: true,
+              ),
+            ),
             const SizedBox(width: 16),
             Expanded(
-                child: _buildTextField(controller.alertLimitController,
-                    'الحد الأدنى للتنبيه', Icons.warning_amber_rounded,
-                    isNumber: true)),
+              child: _buildTextField(
+                controller.alertLimitController,
+                'الحد الأدنى للتنبيه',
+                Icons.warning_amber_rounded,
+                isNumber: true,
+              ),
+            ),
             const SizedBox(width: 16),
             // --- 6. إضافة منتقي تاريخ الإنتاج ---
             Expanded(
-                child: _buildDatePicker(
-                    controller.productionDateController,
-                    'تاريخ الإنتاج',
-                        (date) => controller.updateProductionDate(date!),
-                    isRequired: false)),
+              child: _buildDatePicker(
+                controller.productionDateController,
+                'تاريخ الإنتاج',
+                (date) => controller.updateProductionDate(date!),
+                isRequired: false,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
         // تاريخ الانتهاء في سطر لوحده ليكون أوضح
-        _buildDatePicker(controller.expiryDateController, 'تاريخ الانتهاء',
-                (date) => controller.updateExpiryDate(date!)),
+        _buildDatePicker(
+          controller.expiryDateController,
+          'تاريخ الانتهاء',
+          (date) => controller.updateExpiryDate(date!),
+        ),
         const Divider(height: 32),
 
         // قسم الملاحظات
@@ -157,9 +178,14 @@ class AddEditItemDialog extends StatelessWidget {
   }
 
   // ويدجت مساعد لإنشاء حقول الإدخال بشكل موحد
-  Widget _buildTextField(TextEditingController controller, String label,
-      IconData icon,
-      {bool isRequired = true, bool isNumber = false, int maxLines = 1}) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isRequired = true,
+    bool isNumber = false,
+    int maxLines = 1,
+  }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
@@ -184,9 +210,12 @@ class AddEditItemDialog extends StatelessWidget {
   }
 
   // ويدجت مساعد لإنشاء منتقي التاريخ
-  Widget _buildDatePicker(TextEditingController controller, String label,
-      Function(DateTime?) onDatePicked,
-      {bool isRequired = true}) {
+  Widget _buildDatePicker(
+    TextEditingController controller,
+    String label,
+    Function(DateTime?) onDatePicked, {
+    bool isRequired = true,
+  }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
@@ -231,7 +260,9 @@ class AddEditItemDialog extends StatelessWidget {
                 prefixIcon: SizedBox(
                   width: 24,
                   height: 24,
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
                 border: OutlineInputBorder(),
               ),
@@ -249,10 +280,7 @@ class AddEditItemDialog extends StatelessWidget {
                 ? controller.selectedUnit.value
                 : null,
             items: controller.unitsList.map((String unit) {
-              return DropdownMenuItem<String>(
-                value: unit,
-                child: Text(unit),
-              );
+              return DropdownMenuItem<String>(value: unit, child: Text(unit));
             }).toList(),
             onChanged: (String? newValue) {
               if (newValue != null) {
@@ -283,61 +311,62 @@ class AddEditItemDialog extends StatelessWidget {
   Widget _buildImagePicker(ItemsController controller, ThemeData theme) {
     return GetBuilder<ItemsController>(
       // id: 'image_picker_update',
-      builder: (ctrl) =>
-          DropTarget(
-            onDragDone: (detail) {
-              ctrl.selectedImagePath.value = detail.files.first.path;
-              ctrl.update();
-            },
-            child: GestureDetector(
-              onTap: ctrl.pickImage,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ctrl.selectedImagePath.value.isNotEmpty
-                    ? ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: Image.file(
-                    File(ctrl.selectedImagePath.value),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
+      builder: (ctrl) => DropTarget(
+        onDragDone: (detail) {
+          ctrl.selectedImagePath.value = detail.files.first.path;
+          ctrl.update();
+        },
+        child: GestureDetector(
+          onTap: ctrl.pickImage,
+          child: Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ctrl.selectedImagePath.value.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: Image.file(
+                      File(ctrl.selectedImagePath.value),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 50,
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.cloud_upload_outlined,
+                          color: Colors.grey.shade600,
                           size: 50,
                         ),
-                      );
-                    },
+                        const SizedBox(height: 8),
+                        Text(
+                          'اسحب صورة إلى هنا\nأو اضغط للاختيار',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )
-                    : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.cloud_upload_outlined,
-                        color: Colors.grey.shade600,
-                        size: 50,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'اسحب صورة إلى هنا\nأو اضغط للاختيار',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade700),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ),
+        ),
+      ),
     );
   }
 
@@ -356,7 +385,9 @@ class AddEditItemDialog extends StatelessWidget {
                 prefixIcon: SizedBox(
                   width: 24,
                   height: 24,
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
                 border: OutlineInputBorder(),
               ),
@@ -368,14 +399,14 @@ class AddEditItemDialog extends StatelessWidget {
               prefixIcon: Icon(Icons.medication_outlined),
               border: OutlineInputBorder(),
             ),
-            value: controller.itemFormsList.contains(controller.selectedItemForm.value)
+            value:
+                controller.itemFormsList.contains(
+                  controller.selectedItemForm.value,
+                )
                 ? controller.selectedItemForm.value
                 : null,
             items: controller.itemFormsList.map((String form) {
-              return DropdownMenuItem<String>(
-                value: form,
-                child: Text(form),
-              );
+              return DropdownMenuItem<String>(value: form, child: Text(form));
             }).toList(),
             onChanged: (String? newValue) {
               if (newValue != null) {
