@@ -7,30 +7,41 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:medistock/app/data/local/models/item_model.dart';
 import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../data/local/models/report_settings_model.dart';
+import '../../data/local/providers/transaction_provider.dart'; // ✅ Added for DTO
 
 class ItemReportGenerator {
-  static Future<void> exportToPdf(List<ItemModel> items) async {
+  static Future<Uint8List> generatePdf(
+    List<ItemModel> items, {
+    ReportSettingsModel? settings,
+    String recipientSuffix = 'المحترم', // ✅ Added
+  }) async {
+    // If no settings provided, use defaults (or you could load them here via service)
+    final effectiveSettings = settings ?? ReportSettingsModel.defaults();
+
     final pdf = pw.Document();
 
-    // --- ✅ الحل لمشكلة الحروف المتداخلة: استخدام PdfGoogleFonts ---
-    final font = await PdfGoogleFonts.cairoRegular();
-    final boldFont = await PdfGoogleFonts.cairoBold();
+    // --- ✅ الحل لمشكلة الحروف المتداخلة: استخدام PdfGoogleFonts (تغيير إلى Amiri) ---
+    final font = await PdfGoogleFonts.amiriRegular();
+    final boldFont = await PdfGoogleFonts.amiriBold();
 
-    // لنفترض وجود شعار في هذا المسار
-    final logoImage = pw.MemoryImage(
-      (await rootBundle.load(
-        'assets/images/logo_icon.png',
-      )).buffer.asUint8List(),
-    );
-
-    // --- حساب الملخصات ---
-    final totalItems = items.length;
-    final expiredCount = items
-        .where((i) => i.expiryDate.isBefore(DateTime.now()))
-        .length;
-    final lowStockCount = items
-        .where((i) => i.quantity > 0 && i.quantity <= i.alertLimit)
-        .length;
+    // --- تحميل الشعار من الإعدادات أو الافتراضي ---
+    pw.MemoryImage? logoImage;
+    if (effectiveSettings.logoPath != null &&
+        File(effectiveSettings.logoPath!).existsSync()) {
+      logoImage = pw.MemoryImage(
+        File(effectiveSettings.logoPath!).readAsBytesSync(),
+      );
+    } else {
+      // fallback if needed, or null
+      try {
+        logoImage = pw.MemoryImage(
+          (await rootBundle.load(
+            'assets/images/logo_icon.png',
+          )).buffer.asUint8List(),
+        );
+      } catch (_) {}
+    }
 
     // --- بناء صفحات التقرير ---
     pdf.addPage(
@@ -39,20 +50,38 @@ class ItemReportGenerator {
         pageFormat: PdfPageFormat.a4.portrait,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: font, bold: boldFont),
-        header: (context) => _buildHeader(logoImage),
         build: (context) => [
-          _buildReportTitle(),
-          pw.SizedBox(height: 20),
-          _buildSummary(totalItems, expiredCount, lowStockCount),
-          pw.SizedBox(height: 20),
+          _buildAdvancedBody(
+            effectiveSettings,
+            boldFont,
+            font,
+            recipientSuffix,
+          ), // ✅ Pass suffix
+          pw.SizedBox(height: 10),
           _buildItemsTable(items),
         ],
-        footer: (context) => _buildFooter(context),
+        footer: (context) => _buildFooter(context, effectiveSettings, boldFont),
+        header: (context) =>
+            _buildAdvancedHeader(logoImage, effectiveSettings, boldFont),
       ),
     );
 
-    // --- حفظ وفتح الملف ---
-    final Uint8List pdfBytes = await pdf.save();
+    return pdf.save();
+  }
+
+  static Future<void> exportToPdf(
+    List<ItemModel> items, {
+    ReportSettingsModel? settings,
+    String recipientSuffix = 'المحترم', // ✅ Added
+  }) async {
+    // 1. Generate PDF Bytes
+    final Uint8List pdfBytes = await generatePdf(
+      items,
+      settings: settings,
+      recipientSuffix: recipientSuffix,
+    );
+
+    // 2. Ask user for save location
     String? outputFile = await FilePicker.platform.saveFile(
       dialogTitle: 'الرجاء تحديد مسار لحفظ التقرير',
       fileName:
@@ -76,60 +105,162 @@ class ItemReportGenerator {
       await OpenFile.open(file.path);
     }
   }
+
   // --- دوال بناء أجزاء التقرير (متوافقة مع الهوية البصرية) ---
 
-  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+  static pw.Widget _buildAdvancedHeader(
+    pw.MemoryImage? logo,
+    ReportSettingsModel settings,
+    pw.Font font,
+  ) {
     return pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 15),
+      padding: const pw.EdgeInsets.only(bottom: 10),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5),
-        ),
+        border: pw.Border(bottom: pw.BorderSide(width: 2)), // Thick line
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'نظام إدارة المخزون MediStock',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              pw.SizedBox(height: 5),
-              pw.Text(
-                'تقرير حالة المخزون',
-                style: const pw.TextStyle(fontSize: 10),
-              ),
-            ],
+          // Right Side
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: settings.headerRightLines
+                  .map((line) => _buildReportLine(line, font))
+                  .toList(),
+            ),
           ),
-          pw.SizedBox(height: 60, width: 60, child: pw.Image(logo)),
+
+          // Center (Logo) - Perfectly Centered with Spacing
+          if (logo != null) ...[
+            pw.SizedBox(width: 15),
+            pw.SizedBox(height: 80, width: 80, child: pw.Image(logo)),
+            pw.SizedBox(width: 15),
+          ],
+
+          // Left Side
+          pw.Expanded(
+            child: pw.Column(
+              // ✅ FIXED: Align to START (Right) so items hug the center/logo side
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: settings.headerLeftLines
+                  .map((line) => _buildReportLine(line, font))
+                  .toList(),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  static pw.Widget _buildReportTitle() {
+  static pw.Widget _buildReportLine(ReportLine line, pw.Font font) {
+    pw.TextAlign textAlign;
+    switch (line.align) {
+      case 'right':
+        textAlign = pw.TextAlign.right;
+        break;
+      case 'left':
+        textAlign = pw.TextAlign.left;
+        break;
+      case 'center':
+      default:
+        textAlign = pw.TextAlign.center;
+        break;
+    }
+
+    return pw.Opacity(
+      opacity: line.text.isEmpty ? 0 : 1,
+      child: pw.Text(
+        line.text.isEmpty
+            ? ' '
+            : line.text, // Ensure empty lines take space if needed or just handle empty
+        textAlign: textAlign,
+        style: pw.TextStyle(
+          font: font,
+          fontSize: line.fontSize,
+          fontWeight: line.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          decoration: line.isUnderlined ? pw.TextDecoration.underline : null,
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _buildAdvancedBody(
+    ReportSettingsModel settings,
+    pw.Font boldFont,
+    pw.Font regularFont,
+    String recipientSuffix, // ✅ Added
+  ) {
     return pw.Column(
+      crossAxisAlignment:
+          pw.CrossAxisAlignment.stretch, // Allow lines to align themselves
       children: [
+        pw.SizedBox(height: 10),
+        _buildReportLine(settings.reportTitle, regularFont),
+        pw.SizedBox(height: 20),
+
+        // ✅ FIXED: Recipient Name (Right) and Suffix (Left)
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Expanded(
+              child: _buildReportLine(settings.recipientTitle, regularFont),
+            ),
+            pw.Text(
+              recipientSuffix,
+              style: pw.TextStyle(
+                font: regularFont,
+                fontSize:
+                    settings.recipientTitle.fontSize, // Use same size as title
+                fontWeight: settings.recipientTitle.isBold
+                    ? pw.FontWeight.bold
+                    : pw.FontWeight.normal, // Match boldness
+              ),
+            ),
+          ],
+        ),
+
+        pw.SizedBox(height: 10),
+        _buildReportLine(settings.introText, regularFont),
+        pw.SizedBox(height: 10),
+        _buildReportLine(settings.listDescription, regularFont),
         pw.SizedBox(height: 15),
-        pw.Text(
-          'تقرير مخزون الأصناف',
-          style: pw.TextStyle(
-            fontSize: 22,
-            fontWeight: pw.FontWeight.bold,
-            color: PdfColors.blueGrey800,
-          ),
-        ),
-        pw.SizedBox(height: 5),
-        pw.Text(
-          'تاريخ التقرير: ${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
-          style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
-        ),
+        _buildReportLine(settings.closingText, regularFont),
+        pw.SizedBox(height: 10),
       ],
+    );
+  }
+
+  // دالة جديدة للتوقيعات
+  static pw.Widget _buildSignatories(
+    List<ReportLine> signatories,
+    pw.Font font,
+  ) {
+    if (signatories.isEmpty) return pw.Container();
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+      children: signatories.map((sig) {
+        return pw.Column(
+          children: [
+            pw.Text(
+              sig.text,
+              style: pw.TextStyle(
+                font: font,
+                fontSize: sig.fontSize,
+                fontWeight: sig.isBold
+                    ? pw.FontWeight.bold
+                    : pw.FontWeight.normal,
+              ),
+            ),
+            pw.SizedBox(height: 40), // مسافة للتوقيع
+            pw.Text(
+              '....................',
+              style: const pw.TextStyle(color: PdfColors.grey),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 
@@ -165,6 +296,108 @@ class ItemReportGenerator {
           ),
         ],
       ),
+    );
+  }
+
+  // --- ✅ جديد: توليد تقرير المستفيد ---
+  static Future<Uint8List> generateBeneficiaryReportPdf(
+    List<BeneficiaryReportItem> transactions,
+    String beneficiaryName, {
+    ReportSettingsModel? settings,
+    String recipientSuffix = 'المحترم',
+  }) async {
+    final effectiveSettings = settings ?? ReportSettingsModel.defaults();
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.amiriRegular();
+    final boldFont = await PdfGoogleFonts.amiriBold();
+
+    // Load Logo
+    pw.MemoryImage? logoImage;
+    if (effectiveSettings.logoPath != null &&
+        File(effectiveSettings.logoPath!).existsSync()) {
+      logoImage = pw.MemoryImage(
+        File(effectiveSettings.logoPath!).readAsBytesSync(),
+      );
+    } else {
+      try {
+        logoImage = pw.MemoryImage(
+          (await rootBundle.load(
+            'assets/images/logo_icon.png',
+          )).buffer.asUint8List(),
+        );
+      } catch (_) {}
+    }
+
+    // Override Recipient Title temporarily for this report if needed,
+    // Or we assume the user sets the Beneficiary Name in the "Recipient" field dynamically?
+    // BETTER APPROACH: We use the passed `beneficiaryName` as the recipient title in the body.
+    // Creating a copy of settings to inject the specific beneficiary name into the "Recipient" slot for this print.
+    var tempSettings = ReportSettingsModel.fromJson(effectiveSettings.toJson());
+    // We override the text of recipientTitle to be the Beneficiary Name
+    // BUT we preserve the styling.
+    tempSettings.recipientTitle.text = beneficiaryName;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.portrait,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        build: (context) => [
+          _buildAdvancedBody(tempSettings, boldFont, font, recipientSuffix),
+          pw.SizedBox(height: 10),
+          _buildBeneficiaryTable(transactions),
+        ],
+        footer: (context) => _buildFooter(context, effectiveSettings, boldFont),
+        header: (context) =>
+            _buildAdvancedHeader(logoImage, effectiveSettings, boldFont),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static pw.Widget _buildBeneficiaryTable(
+    List<BeneficiaryReportItem> transactions,
+  ) {
+    final headers = ['ملاحظات', 'الوحدة', 'الكمية', 'الصنف', 'التاريخ'];
+
+    final data = transactions.map((t) {
+      return [
+        t.notes ?? '-',
+        t.unit ?? '-',
+        t.quantity.toString(),
+        t.itemName,
+        DateFormat('yyyy-MM-dd').format(t.date),
+      ];
+    }).toList();
+
+    return pw.Table.fromTextArray(
+      cellAlignment: pw.Alignment.centerRight,
+      headerStyle: pw.TextStyle(
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+        fontSize: 10,
+      ),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+      rowDecoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
+      ),
+      headers: headers,
+      data: data,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(3), // ملاحظات
+        1: const pw.FlexColumnWidth(2), // الوحدة
+        2: const pw.FlexColumnWidth(2), // الكمية
+        3: const pw.FlexColumnWidth(4), // الصنف
+        4: const pw.FlexColumnWidth(3), // التاريخ
+      },
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.center,
+      },
     );
   }
 
@@ -252,14 +485,29 @@ class ItemReportGenerator {
     );
   }
 
-  static pw.Widget _buildFooter(pw.Context context) {
-    return pw.Container(
-      alignment: pw.Alignment.center,
-      margin: const pw.EdgeInsets.only(top: 10),
-      child: pw.Text(
-        'صفحة ${context.pageNumber} من ${context.pagesCount} - © نظام MediStock',
-        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
-      ),
+  static pw.Widget _buildFooter(
+    pw.Context context,
+    ReportSettingsModel settings,
+    pw.Font font,
+  ) {
+    return pw.Column(
+      children: [
+        // Draw Signatories ONLY on the last page
+        if (context.pageNumber == context.pagesCount) ...[
+          pw.SizedBox(height: 20),
+          _buildSignatories(settings.signatories, font),
+          pw.SizedBox(height: 20),
+        ],
+        // Page Number
+        pw.Container(
+          alignment: pw.Alignment.center,
+          margin: const pw.EdgeInsets.only(top: 10),
+          child: pw.Text(
+            'صفحة ${context.pageNumber} من ${context.pagesCount}',
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -2,15 +2,16 @@ import 'dart:async'; // لاستخدام الـ Timer في البحث
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:medistock/app/core/utils/item_report_generator.dart';
+import 'package:medistock/app/core/utils/item_report_generator.dart'; // ✅ Re-added
 import '../../../data/local/models/item_model.dart';
 import '../../../data/local/providers/item_provider.dart';
 import '../views/add_edit_item_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../views/manage_lookups_dialog.dart';
+import '../views/print_preview_dialog.dart'; // ✅ جديد
+import 'package:medistock/app/core/services/report_settings_service.dart'; // ✅ جديد
 // --- ✅ تصحيح: توحيد مسار الاستيراد ---
-
 
 class ItemsController extends GetxController {
   final ItemProvider _provider = ItemProvider();
@@ -24,7 +25,6 @@ class ItemsController extends GetxController {
   var activeFilter = 'الكل'.obs;
   var sortOption = 'الجديد'.obs;
   var isSortAscending = false.obs; // الافتراضي تنازلي (الأحدث أولاً)
-
 
   var isLoading = true.obs;
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -47,7 +47,6 @@ class ItemsController extends GetxController {
   var outOfStockCount = 0.obs;
   var lowStockCount = 0.obs; // جديد: للأصناف التي قاربت على النفاذ
   var expiredCount = 0.obs; // جديد: للأصناف منتهية الصلاحية
-
 
   var selectedImagePath = ''.obs;
   var unitsList = <String>[].obs;
@@ -109,23 +108,24 @@ class ItemsController extends GetxController {
     totalItemsCount.value = _allItems.length;
     final ninetyDaysFromNow = DateTime.now().add(const Duration(days: 90));
     expiringSoonCount.value = _allItems
-        .where((item) =>
-    !item.expiryDate.isBefore(DateTime.now()) &&
-        item.expiryDate.isBefore(ninetyDaysFromNow))
+        .where(
+          (item) =>
+              !item.expiryDate.isBefore(DateTime.now()) &&
+              item.expiryDate.isBefore(ninetyDaysFromNow),
+        )
         .length;
-    outOfStockCount.value =
-        _allItems
-            .where((item) => item.quantity == 0)
-            .length;
+    outOfStockCount.value = _allItems
+        .where((item) => item.quantity == 0)
+        .length;
 
-    lowStockCount.value = _allItems.where((item) =>
-    item.quantity > 0 && item.quantity <= item.alertLimit
-    ).length;
+    lowStockCount.value = _allItems
+        .where((item) => item.quantity > 0 && item.quantity <= item.alertLimit)
+        .length;
 
-// --- ✅ جديد: حساب الأصناف منتهية الصلاحية ---
-    expiredCount.value = _allItems.where((item) =>
-        item.expiryDate.isBefore(DateTime.now())
-    ).length;
+    // --- ✅ جديد: حساب الأصناف منتهية الصلاحية ---
+    expiredCount.value = _allItems
+        .where((item) => item.expiryDate.isBefore(DateTime.now()))
+        .length;
   }
 
   void searchItems(String keyword) {
@@ -134,7 +134,6 @@ class ItemsController extends GetxController {
       _applyFiltersAndSort(); // <-- ✅ تم التعديل
     });
   }
-
 
   void clearSearch() {
     searchController.clear();
@@ -161,7 +160,8 @@ class ItemsController extends GetxController {
     alertLimitController.text = item.alertLimit.toString();
     notesController.text = item.notes ?? '';
     selectedUnit.value = item.unit ?? '';
-    selectedItemForm.value = item.formId?.toString() ??
+    selectedItemForm.value =
+        item.formId?.toString() ??
         ''; // ✅ جديد: سنحتاج لتحويل ID إلى اسم لاحقاً
     if (item.productionDate != null) {
       updateProductionDate(item.productionDate!);
@@ -226,7 +226,9 @@ class ItemsController extends GetxController {
           await _provider.addItem(newItem);
           Get.back(); // إغلاق نافذة الإضافة/التعديل أولاً
           _showSuccessDialog(
-              'تمت الإضافة بنجاح', 'تم حفظ الصنف الجديد في قاعدة البيانات.');
+            'تمت الإضافة بنجاح',
+            'تم حفظ الصنف الجديد في قاعدة البيانات.',
+          );
         }
         fetchAllItems();
       } catch (e) {
@@ -248,25 +250,26 @@ class ItemsController extends GetxController {
 
   void deleteItem(int id) {
     Get.defaultDialog(
-        title: "تأكيد الحذف",
-        middleText:
-        "هل أنت متأكد أنك تريد حذف هذا الصنف؟ لا يمكن التراجع عن هذا الإجراء.",
-        textConfirm: "حذف",
-        textCancel: "إلغاء",
-        buttonColor: Get.theme.colorScheme.error,
-        confirmTextColor: Colors.white,
-        onConfirm: () async {
-          Get.back(); // إغلاق نافذة التأكيد
-          try {
-            await _provider.deleteItem(id);
-            fetchAllItems();
-            // --- ✅ تم التعديل: استبدال Snackbar بـ Dialog ---
-            _showSuccessDialog('تم الحذف', 'تم حذف الصنف من قاعدة البيانات.');
-          } catch (e) {
-            // --- ✅ تم التعديل: استبدال Snackbar بـ Dialog ---
-            _showErrorDialog('فشل حذف الصنف', e.toString());
-          }
-        });
+      title: "تأكيد الحذف",
+      middleText:
+          "هل أنت متأكد أنك تريد حذف هذا الصنف؟ لا يمكن التراجع عن هذا الإجراء.",
+      textConfirm: "حذف",
+      textCancel: "إلغاء",
+      buttonColor: Get.theme.colorScheme.error,
+      confirmTextColor: Colors.white,
+      onConfirm: () async {
+        Get.back(); // إغلاق نافذة التأكيد
+        try {
+          await _provider.deleteItem(id);
+          fetchAllItems();
+          // --- ✅ تم التعديل: استبدال Snackbar بـ Dialog ---
+          _showSuccessDialog('تم الحذف', 'تم حذف الصنف من قاعدة البيانات.');
+        } catch (e) {
+          // --- ✅ تم التعديل: استبدال Snackbar بـ Dialog ---
+          _showErrorDialog('فشل حذف الصنف', e.toString());
+        }
+      },
+    );
   }
 
   void pickImage() async {
@@ -302,10 +305,26 @@ class ItemsController extends GetxController {
     );
   }
 
-  // --- ✅ تم التعديل: استدعاء خدمة التصدير الخارجية ---
-  void exportToPdf() async {
-    // تمرير قائمة الأصanolol الحالية (المعروضة على الشاشة) إلى خدمة التصدير
-    await ItemReportGenerator.exportToPdf(itemsList.toList());
+  // --- ✅ تم التعديل: فتح نافذة المعاينة والطباعة ---
+  void exportToPdf() {
+    // 1. تحميل الإعدادات الحالية للتقارير
+    final reportSettingsService = ReportSettingsService();
+    final settings = reportSettingsService.loadSettings();
+
+    // 2. فتح نافذة المعاينة
+    Get.dialog(
+      PrintPreviewDialog(
+        initialSettings: settings,
+        pdfBuilder: (settings, suffix) async {
+          return ItemReportGenerator.generatePdf(
+            itemsList.toList(),
+            settings: settings,
+            recipientSuffix: suffix,
+          );
+        },
+      ),
+      barrierDismissible: false,
+    );
   }
 
   // ✅ جديد: دالة لجلب الأشكال الدوائية
@@ -317,7 +336,6 @@ class ItemsController extends GetxController {
       print("Error fetching item forms: $e");
     }
   }
-
 
   @override
   void onClose() {
@@ -334,7 +352,6 @@ class ItemsController extends GetxController {
     _debounce?.cancel();
     super.onClose();
   }
-
 
   void openManageLookupsDialog(LookupType type) {
     lookupTextController.clear();
@@ -353,8 +370,7 @@ class ItemsController extends GetxController {
         await _provider.addItemForm(value);
         fetchItemForms(); // إعادة تحميل القائمة
       }
-      lookupTextController
-          .clear();
+      lookupTextController.clear();
     } catch (e) {
       _showErrorDialog('خطأ في الإضافة', 'قد يكون هذا العنصر موجوداً بالفعل.');
     }
@@ -382,7 +398,9 @@ class ItemsController extends GetxController {
           _showSuccessDialog('نجاح', 'تم حذف العنصر بنجاح.');
         } catch (e) {
           _showErrorDialog(
-              'خطأ في الحذف', 'لا يمكن حذف هذا العنصر لأنه مستخدم حالياً.');
+            'خطأ في الحذف',
+            'لا يمكن حذف هذا العنصر لأنه مستخدم حالياً.',
+          );
         }
       },
     );
@@ -395,37 +413,45 @@ class ItemsController extends GetxController {
     // 1. تطبيق فلتر الحالة (مثل: منتهي الصلاحية)
     switch (activeFilter.value) {
       case 'قارب على النفاذ':
-        filteredList = filteredList.where((i) =>
-        i.quantity > 0 && i.quantity <= i.alertLimit).toList();
+        filteredList = filteredList
+            .where((i) => i.quantity > 0 && i.quantity <= i.alertLimit)
+            .toList();
         break;
       case 'نفد من المخزون':
         filteredList = filteredList.where((i) => i.quantity == 0).toList();
         break;
       case 'قارب على الانتهاء':
         final ninetyDaysFromNow = DateTime.now().add(const Duration(days: 90));
-        filteredList = filteredList.where((i) =>
-        !i.expiryDate.isBefore(DateTime.now()) &&
-            i.expiryDate.isBefore(ninetyDaysFromNow)).toList();
+        filteredList = filteredList
+            .where(
+              (i) =>
+                  !i.expiryDate.isBefore(DateTime.now()) &&
+                  i.expiryDate.isBefore(ninetyDaysFromNow),
+            )
+            .toList();
         break;
       case 'منتهي الصلاحية':
-        filteredList =
-            filteredList
-                .where((i) => i.expiryDate.isBefore(DateTime.now()))
-                .toList();
+        filteredList = filteredList
+            .where((i) => i.expiryDate.isBefore(DateTime.now()))
+            .toList();
         break;
       default: // 'الكل'
-      // لا تفعل شيئًا، استخدم القائمة الكاملة
+        // لا تفعل شيئًا، استخدم القائمة الكاملة
         break;
     }
 
     // 2. تطبيق فلتر البحث النصي
     final keyword = searchController.text.trim().toLowerCase();
     if (keyword.isNotEmpty) {
-      filteredList = filteredList.where((item) =>
-      item.name.toLowerCase().contains(keyword) ||
-          (item.scientificName?.toLowerCase().contains(keyword) ?? false) ||
-          (item.itemCode?.toLowerCase().contains(keyword) ?? false)
-      ).toList();
+      filteredList = filteredList
+          .where(
+            (item) =>
+                item.name.toLowerCase().contains(keyword) ||
+                (item.scientificName?.toLowerCase().contains(keyword) ??
+                    false) ||
+                (item.itemCode?.toLowerCase().contains(keyword) ?? false),
+          )
+          .toList();
     }
 
     // 3. تطبيق الترتيب
@@ -464,6 +490,4 @@ class ItemsController extends GetxController {
     isSortAscending.value = !isSortAscending.value;
     _applyFiltersAndSort();
   }
-
-
 }

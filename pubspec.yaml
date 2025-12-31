@@ -48,6 +48,7 @@ dependencies:
   window_manager: ^0.5.1
   fl_chart: ^0.68.0
   get_storage: ^2.1.1
+  docx_template: ^0.4.0
 
 dev_dependencies:
   flutter_test:

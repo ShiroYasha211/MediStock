@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/settings_controller.dart';
+import 'report_settings_view.dart';
 
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
@@ -22,6 +23,13 @@ class SettingsView extends StatelessWidget {
 
           // --- ✅ قسم إعدادات المظهر ---
           _buildThemeSettingsCard(theme, controller),
+
+          const SizedBox(height: 20),
+
+          // --- ✅ قسم إعدادات التقارير (جديد) ---
+          _buildReportSettingsCard(theme),
+
+          const SizedBox(height: 20),
 
           const SizedBox(height: 20),
 
@@ -54,6 +62,38 @@ class SettingsView extends StatelessWidget {
                   controller.switchTheme();
                 },
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- دالة واجهة إعدادات التقارير ---
+  Widget _buildReportSettingsCard(ThemeData theme) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.print, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Text('إعدادات الطباعة', style: theme.textTheme.titleLarge),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.description)),
+              title: const Text('تصميم الترويسة والتقارير'),
+              subtitle: const Text('تخصيص الشعار، الترويسة، والتذييلات'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Get.to(() => const ReportSettingsView());
+              },
             ),
           ],
         ),
