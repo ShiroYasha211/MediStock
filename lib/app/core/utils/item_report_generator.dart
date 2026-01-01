@@ -5,7 +5,7 @@ import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:medistock/app/data/local/models/item_model.dart';
-import 'package:printing/printing.dart';
+
 import 'package:file_picker/file_picker.dart';
 import '../../data/local/models/report_settings_model.dart';
 import '../../data/local/providers/transaction_provider.dart'; // ✅ Added for DTO
@@ -21,9 +21,12 @@ class ItemReportGenerator {
 
     final pdf = pw.Document();
 
-    // --- ✅ الحل لمشكلة الحروف المتداخلة: استخدام PdfGoogleFonts (تغيير إلى Amiri) ---
-    final font = await PdfGoogleFonts.amiriRegular();
-    final boldFont = await PdfGoogleFonts.amiriBold();
+    // --- ✅ الحل لمشكلة الحروف المتداخلة: استخدام الخط المحلي (Amiri) ---
+    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+    final font = pw.Font.ttf(fontData);
+
+    final boldFontData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
+    final boldFont = pw.Font.ttf(boldFontData);
 
     // --- تحميل الشعار من الإعدادات أو الافتراضي ---
     pw.MemoryImage? logoImage;
@@ -308,8 +311,11 @@ class ItemReportGenerator {
   }) async {
     final effectiveSettings = settings ?? ReportSettingsModel.defaults();
     final pdf = pw.Document();
-    final font = await PdfGoogleFonts.amiriRegular();
-    final boldFont = await PdfGoogleFonts.amiriBold();
+    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+    final font = pw.Font.ttf(fontData);
+
+    final boldFontData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
+    final boldFont = pw.Font.ttf(boldFontData);
 
     // Load Logo
     pw.MemoryImage? logoImage;

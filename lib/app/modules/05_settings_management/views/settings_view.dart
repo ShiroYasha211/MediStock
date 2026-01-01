@@ -35,6 +35,13 @@ class SettingsView extends StatelessWidget {
 
           // --- ✅ قسم النسخ الاحتياطي ---
           _buildBackupSettingsCard(theme, controller),
+
+          const SizedBox(height: 20),
+
+          // --- ✅ قسم المطور (جديد) ---
+          _buildDeveloperInfoCard(theme),
+
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -165,6 +172,118 @@ class SettingsView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // --- ✅ دالة واجهة معلومات المطور (جديد) ---
+  Widget _buildDeveloperInfoCard(ThemeData theme) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withOpacity(0.05),
+              theme.colorScheme.surface,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          border: Border.all(
+            color: theme.colorScheme.primary.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.code_rounded,
+                  size: 40,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'تم التطوير بواسطة',
+                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Mohammed Alhemyari',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Divider(height: 32),
+              _buildContactRow(
+                theme,
+                Icons.chat,
+                'تواصل عبر واتساب',
+                '+967773468708',
+              ),
+              const SizedBox(height: 16),
+              _buildContactRow(
+                theme,
+                Icons.email_outlined,
+                'البريد الإلكتروني',
+                'alhemyarimohammed211@gmail.com',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactRow(
+    ThemeData theme,
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Icon(icon, color: theme.colorScheme.primary, size: 20),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+              ),
+              SelectableText(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
