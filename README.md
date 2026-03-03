@@ -1,6 +1,6 @@
 # 🏥 MediStock - نظام إدارة المخزون الطبي الذكي
 
-![MediStock Logo](assets/images/logo_icon.png)
+
 
 ## 📋 نبذة عن النظام
 
