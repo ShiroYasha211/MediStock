@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
@@ -11,65 +12,114 @@ import '../../data/local/models/report_settings_model.dart';
 import '../../data/local/providers/transaction_provider.dart'; // ✅ Added for DTO
 
 class ItemReportGenerator {
+  // --- Helper to load assets for Isolates ---
+  static Future<Map<String, dynamic>> _loadAssets(
+    ReportSettingsModel settings,
+  ) async {
+    final fontData = (await rootBundle.load(
+      'assets/fonts/Amiri-Regular.ttf',
+    )).buffer.asUint8List();
+    final boldFontData = (await rootBundle.load(
+      'assets/fonts/Amiri-Bold.ttf',
+    )).buffer.asUint8List();
+
+    Uint8List? mainImageBytes;
+    if (settings.logoPath != null &&
+        settings.logoPath!.isNotEmpty &&
+        File(settings.logoPath!).existsSync()) {
+      try {
+        mainImageBytes = File(settings.logoPath!).readAsBytesSync();
+      } catch (_) {}
+    }
+    if (mainImageBytes == null) {
+      try {
+        mainImageBytes = (await rootBundle.load(
+          'assets/images/main.jpeg',
+        )).buffer.asUint8List();
+      } catch (_) {}
+    }
+
+    Uint8List? sideImageBytes;
+    if (settings.headerRightType == 'image' &&
+        settings.headerRightImagePath != null &&
+        settings.headerRightImagePath!.isNotEmpty &&
+        File(settings.headerRightImagePath!).existsSync()) {
+      try {
+        sideImageBytes = File(settings.headerRightImagePath!).readAsBytesSync();
+      } catch (_) {}
+    }
+
+    return {
+      'fontData': fontData,
+      'boldFontData': boldFontData,
+      'mainImageBytes': mainImageBytes,
+      'sideImageBytes': sideImageBytes,
+    };
+  }
+
+  static Future<Uint8List> _generatePdfIsolate(
+    Map<String, dynamic> args,
+  ) async {
+    final items = args['items'] as List<ItemModel>;
+    final settings = ReportSettingsModel.fromJson(args['settings']);
+    final recipientSuffix = args['recipientSuffix'] as String;
+    final assets = args['assets'] as Map<String, dynamic>;
+
+    final pdf = pw.Document();
+    final font = pw.Font.ttf(
+      (assets['fontData'] as Uint8List).buffer.asByteData(),
+    );
+    final boldFont = pw.Font.ttf(
+      (assets['boldFontData'] as Uint8List).buffer.asByteData(),
+    );
+
+    pw.MemoryImage? mainImage;
+    if (assets['mainImageBytes'] != null)
+      mainImage = pw.MemoryImage(assets['mainImageBytes'] as Uint8List);
+
+    pw.MemoryImage? sideImage;
+    if (assets['sideImageBytes'] != null)
+      sideImage = pw.MemoryImage(assets['sideImageBytes'] as Uint8List);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.copyWith(
+          marginTop: settings.marginTop * PdfPageFormat.cm,
+          marginBottom: settings.marginBottom * PdfPageFormat.cm,
+          marginLeft: settings.marginLeft * PdfPageFormat.cm,
+          marginRight: settings.marginRight * PdfPageFormat.cm,
+        ),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        build: (context) => [
+          _buildAdvancedBody(settings, boldFont, font, recipientSuffix),
+          pw.SizedBox(height: 10),
+          settings.tableColumnMode == 'dual'
+              ? _buildDualColumnTable(items)
+              : _buildItemsTable(items),
+        ],
+        footer: (context) => _buildFooter(context, settings, boldFont),
+        header: (context) =>
+            _buildAdvancedHeader(mainImage, sideImage, settings, boldFont),
+      ),
+    );
+    return pdf.save();
+  }
+
   static Future<Uint8List> generatePdf(
     List<ItemModel> items, {
     ReportSettingsModel? settings,
     String recipientSuffix = 'المحترم', // ✅ Added
   }) async {
-    // If no settings provided, use defaults (or you could load them here via service)
     final effectiveSettings = settings ?? ReportSettingsModel.defaults();
+    final assets = await _loadAssets(effectiveSettings);
 
-    final pdf = pw.Document();
-
-    // --- ✅ الحل لمشكلة الحروف المتداخلة: استخدام الخط المحلي (Amiri) ---
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final font = pw.Font.ttf(fontData);
-
-    final boldFontData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
-    final boldFont = pw.Font.ttf(boldFontData);
-
-    // --- تحميل الشعار من الإعدادات أو الافتراضي ---
-    pw.MemoryImage? logoImage;
-    if (effectiveSettings.logoPath != null &&
-        File(effectiveSettings.logoPath!).existsSync()) {
-      logoImage = pw.MemoryImage(
-        File(effectiveSettings.logoPath!).readAsBytesSync(),
-      );
-    } else {
-      // fallback if needed, or null
-      try {
-        logoImage = pw.MemoryImage(
-          (await rootBundle.load(
-            'assets/images/logo_icon.png',
-          )).buffer.asUint8List(),
-        );
-      } catch (_) {}
-    }
-
-    // --- بناء صفحات التقرير ---
-    pdf.addPage(
-      pw.MultiPage(
-        // --- ✅ الحل لمشكلة الصفحة الصغيرة: استخدام الوضع الأفقي ---
-        pageFormat: PdfPageFormat.a4.portrait,
-        textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
-        build: (context) => [
-          _buildAdvancedBody(
-            effectiveSettings,
-            boldFont,
-            font,
-            recipientSuffix,
-          ), // ✅ Pass suffix
-          pw.SizedBox(height: 10),
-          _buildItemsTable(items),
-        ],
-        footer: (context) => _buildFooter(context, effectiveSettings, boldFont),
-        header: (context) =>
-            _buildAdvancedHeader(logoImage, effectiveSettings, boldFont),
-      ),
-    );
-
-    return pdf.save();
+    return compute(_generatePdfIsolate, {
+      'items': items,
+      'settings': effectiveSettings.toJson(),
+      'recipientSuffix': recipientSuffix,
+      'assets': assets,
+    });
   }
 
   static Future<void> exportToPdf(
@@ -112,7 +162,8 @@ class ItemReportGenerator {
   // --- دوال بناء أجزاء التقرير (متوافقة مع الهوية البصرية) ---
 
   static pw.Widget _buildAdvancedHeader(
-    pw.MemoryImage? logo,
+    pw.MemoryImage? mainImage,
+    pw.MemoryImage? sideImage,
     ReportSettingsModel settings,
     pw.Font font,
   ) {
@@ -123,29 +174,44 @@ class ItemReportGenerator {
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // Right Side
+          // Right Side - Image or Text
+          // Right Side - Image or Text
           pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: settings.headerRightLines
-                  .map((line) => _buildReportLine(line, font))
-                  .toList(),
-            ),
+            child: (settings.headerRightType == 'image' && sideImage != null)
+                ? pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Transform.translate(
+                      offset: PdfPoint(
+                        settings.headerRightImageDx,
+                        settings.headerRightImageDy,
+                      ),
+                      child: pw.SizedBox(
+                        width: settings.headerRightImageWidth,
+                        height: settings.headerRightImageHeight,
+                        child: pw.Image(sideImage, fit: pw.BoxFit.contain),
+                      ),
+                    ),
+                  )
+                : pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: settings.headerRightLines
+                        .map((line) => _buildReportLine(line, font))
+                        .toList(),
+                  ),
           ),
 
-          // Center (Logo) - Perfectly Centered with Spacing
-          if (logo != null) ...[
+          // Center (main.jpeg) - الصورة الرئيسية دائماً
+          if (mainImage != null) ...[
             pw.SizedBox(width: 15),
-            pw.SizedBox(height: 80, width: 80, child: pw.Image(logo)),
+            pw.SizedBox(height: 80, width: 80, child: pw.Image(mainImage)),
             pw.SizedBox(width: 15),
           ],
 
           // Left Side
           pw.Expanded(
             child: pw.Column(
-              // ✅ FIXED: Align to START (Right) so items hug the center/logo side
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: settings.headerLeftLines
                   .map((line) => _buildReportLine(line, font))
@@ -210,15 +276,19 @@ class ItemReportGenerator {
             pw.Expanded(
               child: _buildReportLine(settings.recipientTitle, regularFont),
             ),
-            pw.Text(
-              recipientSuffix,
-              style: pw.TextStyle(
-                font: regularFont,
-                fontSize:
-                    settings.recipientTitle.fontSize, // Use same size as title
-                fontWeight: settings.recipientTitle.isBold
-                    ? pw.FontWeight.bold
-                    : pw.FontWeight.normal, // Match boldness
+            pw.Padding(
+              padding: pw.EdgeInsets.only(left: settings.recipientSuffixMargin),
+              child: pw.Text(
+                recipientSuffix,
+                style: pw.TextStyle(
+                  font: regularFont,
+                  fontSize: settings
+                      .recipientTitle
+                      .fontSize, // Use same size as title
+                  fontWeight: settings.recipientTitle.isBold
+                      ? pw.FontWeight.bold
+                      : pw.FontWeight.normal, // Match boldness
+                ),
               ),
             ),
           ],
@@ -232,38 +302,6 @@ class ItemReportGenerator {
         _buildReportLine(settings.closingText, regularFont),
         pw.SizedBox(height: 10),
       ],
-    );
-  }
-
-  // دالة جديدة للتوقيعات
-  static pw.Widget _buildSignatories(
-    List<ReportLine> signatories,
-    pw.Font font,
-  ) {
-    if (signatories.isEmpty) return pw.Container();
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-      children: signatories.map((sig) {
-        return pw.Column(
-          children: [
-            pw.Text(
-              sig.text,
-              style: pw.TextStyle(
-                font: font,
-                fontSize: sig.fontSize,
-                fontWeight: sig.isBold
-                    ? pw.FontWeight.bold
-                    : pw.FontWeight.normal,
-              ),
-            ),
-            pw.SizedBox(height: 40), // مسافة للتوقيع
-            pw.Text(
-              '....................',
-              style: const pw.TextStyle(color: PdfColors.grey),
-            ),
-          ],
-        );
-      }).toList(),
     );
   }
 
@@ -302,6 +340,55 @@ class ItemReportGenerator {
     );
   }
 
+  static Future<Uint8List> _generateBeneficiaryPdfIsolate(
+    Map<String, dynamic> args,
+  ) async {
+    final transactions = args['transactions'] as List<BeneficiaryReportItem>;
+    final settings = ReportSettingsModel.fromJson(args['settings']);
+    final recipientSuffix = args['recipientSuffix'] as String;
+    final assets = args['assets'] as Map<String, dynamic>;
+
+    final pdf = pw.Document();
+    final font = pw.Font.ttf(
+      (assets['fontData'] as Uint8List).buffer.asByteData(),
+    );
+    final boldFont = pw.Font.ttf(
+      (assets['boldFontData'] as Uint8List).buffer.asByteData(),
+    );
+
+    pw.MemoryImage? mainImage;
+    if (assets['mainImageBytes'] != null)
+      mainImage = pw.MemoryImage(assets['mainImageBytes'] as Uint8List);
+
+    pw.MemoryImage? sideImage;
+    if (assets['sideImageBytes'] != null)
+      sideImage = pw.MemoryImage(assets['sideImageBytes'] as Uint8List);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.copyWith(
+          marginTop: settings.marginTop * PdfPageFormat.cm,
+          marginBottom: settings.marginBottom * PdfPageFormat.cm,
+          marginLeft: settings.marginLeft * PdfPageFormat.cm,
+          marginRight: settings.marginRight * PdfPageFormat.cm,
+        ),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        build: (context) => [
+          _buildAdvancedBody(settings, boldFont, font, recipientSuffix),
+          pw.SizedBox(height: 10),
+          settings.tableColumnMode == 'dual'
+              ? _buildDualColumnBeneficiaryTable(transactions)
+              : _buildBeneficiaryTable(transactions),
+        ],
+        footer: (context) => _buildFooter(context, settings, boldFont),
+        header: (context) =>
+            _buildAdvancedHeader(mainImage, sideImage, settings, boldFont),
+      ),
+    );
+    return pdf.save();
+  }
+
   // --- ✅ جديد: توليد تقرير المستفيد ---
   static Future<Uint8List> generateBeneficiaryReportPdf(
     List<BeneficiaryReportItem> transactions,
@@ -310,70 +397,160 @@ class ItemReportGenerator {
     String recipientSuffix = 'المحترم',
   }) async {
     final effectiveSettings = settings ?? ReportSettingsModel.defaults();
-    final pdf = pw.Document();
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final font = pw.Font.ttf(fontData);
-
-    final boldFontData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
-    final boldFont = pw.Font.ttf(boldFontData);
-
-    // Load Logo
-    pw.MemoryImage? logoImage;
-    if (effectiveSettings.logoPath != null &&
-        File(effectiveSettings.logoPath!).existsSync()) {
-      logoImage = pw.MemoryImage(
-        File(effectiveSettings.logoPath!).readAsBytesSync(),
-      );
-    } else {
-      try {
-        logoImage = pw.MemoryImage(
-          (await rootBundle.load(
-            'assets/images/logo_icon.png',
-          )).buffer.asUint8List(),
-        );
-      } catch (_) {}
-    }
-
-    // Override Recipient Title temporarily for this report if needed,
-    // Or we assume the user sets the Beneficiary Name in the "Recipient" field dynamically?
-    // BETTER APPROACH: We use the passed `beneficiaryName` as the recipient title in the body.
-    // Creating a copy of settings to inject the specific beneficiary name into the "Recipient" slot for this print.
     var tempSettings = ReportSettingsModel.fromJson(effectiveSettings.toJson());
     // We override the text of recipientTitle to be the Beneficiary Name
-    // BUT we preserve the styling.
     tempSettings.recipientTitle.text = beneficiaryName;
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.portrait,
-        textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
-        build: (context) => [
-          _buildAdvancedBody(tempSettings, boldFont, font, recipientSuffix),
-          pw.SizedBox(height: 10),
-          _buildBeneficiaryTable(transactions),
-        ],
-        footer: (context) => _buildFooter(context, effectiveSettings, boldFont),
-        header: (context) =>
-            _buildAdvancedHeader(logoImage, effectiveSettings, boldFont),
-      ),
-    );
+    final assets = await _loadAssets(effectiveSettings);
 
-    return pdf.save();
+    return compute(_generateBeneficiaryPdfIsolate, {
+      'transactions': transactions,
+      'settings': tempSettings.toJson(),
+      'recipientSuffix': recipientSuffix,
+      'assets': assets,
+    });
+  }
+
+  // --- ✅ جديد: توليد تقرير خاص بأمر صرف معين (فاتورة/سند) ---
+  static Future<Uint8List> generateOrderReportPdf(
+    List<BeneficiaryReportItem> transactions,
+    String beneficiaryName,
+    String orderNumber, {
+    ReportSettingsModel? settings,
+    String recipientSuffix = 'المحترم',
+  }) async {
+    final effectiveSettings = settings ?? ReportSettingsModel.defaults();
+    var tempSettings = ReportSettingsModel.fromJson(effectiveSettings.toJson());
+    // Override titles for Invoice style
+    tempSettings.recipientTitle.text = beneficiaryName;
+
+    final assets = await _loadAssets(effectiveSettings);
+
+    return compute(_generateBeneficiaryPdfIsolate, {
+      'transactions': transactions,
+      'settings': tempSettings.toJson(),
+      'recipientSuffix': recipientSuffix,
+      'assets': assets,
+    });
+  }
+
+  static pw.Widget _buildDualColumnBeneficiaryTable(
+    List<BeneficiaryReportItem> transactions,
+  ) {
+    // Manually Reverse Order for RTL simulation in LTR Table
+    // Visual Order on Paper (RTL): [  Left Item (Cols 0-4) ]  [ Right Item (Cols 5-9) ]
+    // Desired Cols in Block (RTL): Notes | Qty | Unit | Name | M
+    // Actual LTR Cols in Block:    Notes | Qty | Unit | Name | M
+    // (Wait, LTR: Col 0 is Left. So [Notes...M] renders: Notes(L)..M(R).
+    //  Visually: Notes | Qty | Unit | Name | M.
+    //  RTL Reader sees: M (End) -> Name -> Unit -> Qty -> Notes (Start).
+    //  User said M is at "End" (Left?).
+    //  If I want M at Right side of Block: Block should be [Notes, Qty, Unit, Name, M].
+    //  Then M is at Right.
+    //  If User said M is at End (Left), it implies my previous [M, Name...Notes] put M at Left.
+    //  So [Notes...M] puts M at Right. Correct.
+
+    final baseHeaders = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
+    final headers = [...baseHeaders, ...baseHeaders];
+
+    // Split data
+    final half = (transactions.length / 2).ceil();
+    final data = <List<String>>[];
+
+    for (int i = 0; i < half; i++) {
+      // Right Side Item (First Half) -> Goes to Cols 5-9 (Visual Right)
+      final itemRight = transactions[i];
+      final rowRight = [
+        itemRight.notes ?? '',
+        itemRight.quantity.toString(),
+        itemRight.unit ?? '-',
+        itemRight.itemName,
+        (i + 1).toString(),
+      ];
+
+      // Left Side Item (Second Half) -> Goes to Cols 0-4 (Visual Left)
+      List<String> rowLeft;
+      if (i + half < transactions.length) {
+        final itemLeft = transactions[i + half];
+        rowLeft = [
+          itemLeft.notes ?? '',
+          itemLeft.quantity.toString(),
+          itemLeft.unit ?? '-',
+          itemLeft.itemName,
+          (i + half + 1).toString(),
+        ];
+      } else {
+        rowLeft = ['', '', '', '', ''];
+      }
+
+      // Add: [Left Block, Right Block] -> [rowLeft, rowRight]
+      data.add([...rowLeft, ...rowRight]);
+    }
+
+    return pw.Table.fromTextArray(
+      cellAlignment: pw.Alignment.centerRight,
+      headerStyle: pw.TextStyle(
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+        fontSize: 8,
+      ),
+      cellStyle: const pw.TextStyle(fontSize: 8),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+      // rowDecoration removed to avoid conflict
+      headers: headers,
+      data: data,
+      columnWidths: {
+        // Left Side (Cols 0-4)
+        0: const pw.FlexColumnWidth(3), // ملاحظات
+        1: const pw.FlexColumnWidth(1.5), // الكمية
+        2: const pw.FlexColumnWidth(1.5), // الوحدة
+        3: const pw.FlexColumnWidth(4), // اسم الصنف
+        4: const pw.FlexColumnWidth(0.8), // م
+        // Right Side (Cols 5-9)
+        5: const pw.FlexColumnWidth(3), // ملاحظات
+        6: const pw.FlexColumnWidth(1.5), // الكمية
+        7: const pw.FlexColumnWidth(1.5), // الوحدة
+        8: const pw.FlexColumnWidth(4), // اسم الصنف
+        9: const pw.FlexColumnWidth(0.8), // م
+      },
+      cellAlignments: {
+        // All Right Aligned or Center?
+        // Notes: Right
+        0: pw.Alignment.centerRight,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.center,
+
+        5: pw.Alignment.centerRight,
+        6: pw.Alignment.center,
+        7: pw.Alignment.center,
+        8: pw.Alignment.centerRight,
+        9: pw.Alignment.center,
+      },
+      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
+    );
   }
 
   static pw.Widget _buildBeneficiaryTable(
-    List<BeneficiaryReportItem> transactions,
-  ) {
-    final headers = ['ملاحظات', 'الوحدة', 'الكمية', 'الصنف', 'التاريخ'];
+    List<BeneficiaryReportItem> transactions, {
+    int startIndex = 1,
+  }) {
+    // Single Table - also simulate RTL manually for consistency
+    // Visual RTL: Notes | Qty | Unit | Name | M
+    // LTR Table: Col 0..4
 
-    final data = transactions.map((t) {
+    final headers = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
+
+    final data = transactions.asMap().entries.map((entry) {
+      final index = entry.key;
+      final t = entry.value;
       return [
-        t.notes ?? '-',
-        t.unit ?? '-',
+        t.notes ?? '',
         t.quantity.toString(),
+        t.unit ?? '-',
         t.itemName,
-        DateFormat('yyyy-MM-dd').format(t.date),
+        (startIndex + index).toString(),
       ];
     }).toList();
 
@@ -382,28 +559,28 @@ class ItemReportGenerator {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
-        fontSize: 10,
+        fontSize: 8,
       ),
+      cellStyle: const pw.TextStyle(fontSize: 8),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      rowDecoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
-      ),
+      // rowDecoration removed
       headers: headers,
       data: data,
       columnWidths: {
         0: const pw.FlexColumnWidth(3), // ملاحظات
-        1: const pw.FlexColumnWidth(2), // الوحدة
-        2: const pw.FlexColumnWidth(2), // الكمية
-        3: const pw.FlexColumnWidth(4), // الصنف
-        4: const pw.FlexColumnWidth(3), // التاريخ
+        1: const pw.FlexColumnWidth(1.5), // الكمية
+        2: const pw.FlexColumnWidth(1.5), // الوحدة
+        3: const pw.FlexColumnWidth(4), // اسم الصنف
+        4: const pw.FlexColumnWidth(0.8), // م
       },
       cellAlignments: {
-        0: pw.Alignment.centerLeft,
+        0: pw.Alignment.centerRight,
         1: pw.Alignment.center,
         2: pw.Alignment.center,
         3: pw.Alignment.centerRight,
         4: pw.Alignment.center,
       },
+      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
     );
   }
 
@@ -433,27 +610,103 @@ class ItemReportGenerator {
     );
   }
 
-  static pw.Widget _buildItemsTable(List<ItemModel> items) {
-    // تم تكييف العناوين لتناسب بيانات الأصناف
-    final headers = [
-      'الوحدة', // <-- جديد
-      'الكمية',
-      'تاريخ الانتهاء',
-      'رقم التشغيلة',
-      'كود الصنف', // <-- جديد
-      'الاسم العلمي',
-      'الاسم التجارى',
-    ];
+  static pw.Widget _buildDualColumnTable(List<ItemModel> items) {
+    // Manually Reverse Order for RTL simulation
+    // Desired Cols (RTL): Notes | Qty | Unit | Name | M
+    // Actual LTR Cols:    Notes | Qty | Unit | Name | M
 
-    final data = items.map((item) {
+    final baseHeaders = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
+    final headers = [...baseHeaders, ...baseHeaders];
+
+    // Split data
+    final half = (items.length / 2).ceil();
+    final data = <List<String>>[];
+
+    for (int i = 0; i < half; i++) {
+      // Right Side Item (First Half) -> Cols 5-9
+      final itemRight = items[i];
+      final rowRight = [
+        itemRight.notes ?? '',
+        itemRight.quantity.toString(),
+        itemRight.unit ?? '-',
+        itemRight.name,
+        (i + 1).toString(),
+      ];
+
+      // Left Side Item (Second Half) -> Cols 0-4
+      List<String> rowLeft;
+      if (i + half < items.length) {
+        final itemLeft = items[i + half];
+        rowLeft = [
+          itemLeft.notes ?? '',
+          itemLeft.quantity.toString(),
+          itemLeft.unit ?? '-',
+          itemLeft.name,
+          (i + half + 1).toString(),
+        ];
+      } else {
+        rowLeft = ['', '', '', '', ''];
+      }
+
+      data.add([...rowLeft, ...rowRight]);
+    }
+
+    return pw.Table.fromTextArray(
+      cellAlignment: pw.Alignment.centerRight,
+      headerStyle: pw.TextStyle(
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+        fontSize: 8,
+      ),
+      cellStyle: const pw.TextStyle(fontSize: 8),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+      headers: headers,
+      data: data,
+      columnWidths: {
+        // Left Side
+        0: const pw.FlexColumnWidth(3), // ملاحظات
+        1: const pw.FlexColumnWidth(1.5), // الكمية
+        2: const pw.FlexColumnWidth(1.5), // الوحدة
+        3: const pw.FlexColumnWidth(4), // اسم الصنف
+        4: const pw.FlexColumnWidth(0.8), // م
+        // Right Side
+        5: const pw.FlexColumnWidth(3),
+        6: const pw.FlexColumnWidth(1.5),
+        7: const pw.FlexColumnWidth(1.5),
+        8: const pw.FlexColumnWidth(4),
+        9: const pw.FlexColumnWidth(0.8),
+      },
+      cellAlignments: {
+        0: pw.Alignment.centerRight,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.center,
+        5: pw.Alignment.centerRight,
+        6: pw.Alignment.center,
+        7: pw.Alignment.center,
+        8: pw.Alignment.centerRight,
+        9: pw.Alignment.center,
+      },
+      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
+    );
+  }
+
+  static pw.Widget _buildItemsTable(List<ItemModel> items) {
+    // Single Table - Unified 5 Cols Reversed
+    // Cols: Notes | Qty | Unit | Name | M
+
+    final headers = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
+
+    final data = items.asMap().entries.map((entry) {
+      final index = entry.key;
+      final item = entry.value;
       return [
-        item.unit ?? '-', // <-- جديد
+        item.notes ?? '',
         item.quantity.toString(),
-        DateFormat('yyyy-MM-dd').format(item.expiryDate),
-        item.batchNumber ?? '-',
-        item.itemCode ?? '-', // <-- جديد
-        item.scientificName ?? '-',
+        item.unit ?? '-',
         item.name,
+        (index + 1).toString(),
       ];
     }).toList();
 
@@ -462,32 +715,27 @@ class ItemReportGenerator {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
-        fontSize: 10,
+        fontSize: 8,
       ),
+      cellStyle: const pw.TextStyle(fontSize: 8),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      rowDecoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
-      ),
       headers: headers,
       data: data,
-      // --- ✅ الحل لمشكلة عرض الأعمدة ---
       columnWidths: {
-        0: const pw.FlexColumnWidth(2.5), // الوحدة
-        1: const pw.FlexColumnWidth(2.2), // الكمية
-        2: const pw.FlexColumnWidth(5), // تاريخ الانتهاء
-        3: const pw.FlexColumnWidth(4), // رقم التشغيلة
-        4: const pw.FlexColumnWidth(4), // كود الصنف
-        5: const pw.FlexColumnWidth(4), // الاسم العلمي
-        6: const pw.FlexColumnWidth(4.5), // الاسم التجاري
+        0: const pw.FlexColumnWidth(3), // ملاحظات
+        1: const pw.FlexColumnWidth(1.5), // الكمية
+        2: const pw.FlexColumnWidth(1.5), // الوحدة
+        3: const pw.FlexColumnWidth(4), // اسم الصنف
+        4: const pw.FlexColumnWidth(0.8), // م
       },
       cellAlignments: {
-        0: pw.Alignment.center, // الوحدة
-        1: pw.Alignment.center, // الكمية
-        2: pw.Alignment.center, // تاريخ الانتهاء
-        3: pw.Alignment.center, // رقم التشغيلة
-        4: pw.Alignment.center, // كود الصنف
-        // الأسماء تبقى محاذاة لليمين (الافتراضي)
+        0: pw.Alignment.centerRight,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.center,
       },
+      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
     );
   }
 
@@ -496,12 +744,17 @@ class ItemReportGenerator {
     ReportSettingsModel settings,
     pw.Font font,
   ) {
+    // Check whether to show summary on the first or last page
+    final bool showSignatures = settings.signaturesOnFirstPage == true
+        ? context.pageNumber == 1
+        : context.pageNumber == context.pagesCount;
+
     return pw.Column(
       children: [
-        // Draw Signatories ONLY on the last page
-        if (context.pageNumber == context.pagesCount) ...[
+        // Draw Signatories based on the settings
+        if (showSignatures) ...[
           pw.SizedBox(height: 20),
-          _buildSignatories(settings.signatories, font),
+          _buildSignatures(settings.signatures, font),
           pw.SizedBox(height: 20),
         ],
         // Page Number
@@ -514,6 +767,56 @@ class ItemReportGenerator {
           ),
         ),
       ],
+    );
+  }
+
+  // --- ✅ جديد: بناء التوقيعات بالنظام الجديد (3 أسطر) ---
+  static pw.Widget _buildSignatures(
+    List<SignatureModel> signatures,
+    pw.Font font,
+  ) {
+    if (signatures.isEmpty) return pw.Container();
+
+    // Create a list of columns, one for each signature
+    final sigWidgets = signatures.map((sig) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (sig.rank.isNotEmpty)
+            pw.Text(
+              sig.rank,
+              style: pw.TextStyle(
+                font: font,
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          if (sig.name.isNotEmpty)
+            pw.Text(sig.name, style: pw.TextStyle(font: font, fontSize: 12)),
+          pw.Text(
+            sig.title,
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    // Wrap in Row with SpaceEvenly to distribute them across the page
+    // RTL note: Row renders LTR by default. For Arabic Right-to-Left,
+    // usually the first signature in the list is the most important (Rightmost).
+    // So we might need to reverse the list OR rely on row direction if we can set it.
+    // In standard PDF rendering, Row with alignment handles distribution.
+    // Let's assume the user enters them in Order (Right to Left).
+    // If not, we can reverse: sigWidgets = sigWidgets.reversed.toList();
+    // Conventionally, High ranking is Right.
+
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+      children: sigWidgets, // ✅ Removed reversed to match View logic
     );
   }
 }

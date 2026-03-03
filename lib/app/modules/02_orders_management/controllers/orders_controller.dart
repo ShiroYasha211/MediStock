@@ -10,6 +10,11 @@ import 'package:medistock/app/data/local/providers/beneficiary_provider.dart';
 
 import '../../03_beneficiaries_mangement/controllers/beneficiaries_controller.dart';
 import '../views/order_details_dialog.dart';
+import '../../../data/local/providers/transaction_provider.dart';
+import '../../../core/services/report_settings_service.dart';
+import '../../../core/utils/item_report_generator.dart';
+import '../../01_items_management/views/print_preview_dialog.dart';
+
 class OrdersController extends GetxController {
   final OrderProvider _provider = OrderProvider();
 
@@ -61,8 +66,9 @@ class OrdersController extends GetxController {
       _applyFilters(); // <-- ✅ التصحيح
     } catch (e) {
       Get.defaultDialog(
-          title: "خطأ",
-          middleText: "حدث خطأ أثناء جلب أوامر الصرف: ${e.toString()}");
+        title: "خطأ",
+        middleText: "حدث خطأ أثناء جلب أوامر الصرف: ${e.toString()}",
+      );
       print(e);
     } finally {
       isLoading(false);
@@ -72,17 +78,20 @@ class OrdersController extends GetxController {
   // --- ✅ جديد: دوال للتحكم في الحوار والحقول ---
 
   Future<void> openAddEditDialog({DisbursementOrderModel? orderToEdit}) async {
-    await Get.dialog( // <-- ✅ التغيير
+    await Get.dialog(
+      // <-- ✅ التغيير
       Builder(
-        builder: (context) => AddEditOrderDialog(orderToEdit: orderToEdit),),
+        builder: (context) => AddEditOrderDialog(orderToEdit: orderToEdit),
+      ),
       barrierDismissible: false,
     );
   }
+
   void setupTextFieldsForEdit(DisbursementOrderModel order) {
     orderNumberController.text = order.orderNumber;
     issuingEntityController.text = order.issuingEntity ?? '';
     beneficiaryController.text =
-    'مستفيد رقم ${order.beneficiaryId ?? ''}'; // مؤقت
+        'مستفيد رقم ${order.beneficiaryId ?? ''}'; // مؤقت
     notesController.text = order.notes ?? '';
     updateOrderDate(order.orderDate);
     selectedImagePath.value = order.imagePath ?? '';
@@ -131,21 +140,26 @@ class OrdersController extends GetxController {
         Get.back(); // إغلاق الحوار
         fetchAllOrders(); // تحديث القائمة
         Get.defaultDialog(
-            title: "نجاح",
-            middleText: isEditMode
-                ? "تم تعديل أمر الصرف بنجاح."
-                : "تمت إضافة أمر الصرف بنجاح.");
+          title: "نجاح",
+          middleText: isEditMode
+              ? "تم تعديل أمر الصرف بنجاح."
+              : "تمت إضافة أمر الصرف بنجاح.",
+        );
       } catch (e) {
         Get.defaultDialog(
-            title: "خطأ", middleText: "فشل حفظ الأمر: ${e.toString()}");
+          title: "خطأ",
+          middleText: "فشل حفظ الأمر: ${e.toString()}",
+        );
       }
     }
   }
+
   // --- ✅ جديد: دالة لحذف أمر صرف مع تأكيد ---
   void deleteOrder(int id) {
     Get.defaultDialog(
       title: "تأكيد الحذف",
-      middleText: "هل أنت متأكد من حذف أمر الصرف هذا؟ لا يمكن التراجع عن هذا الإجراء.",
+      middleText:
+          "هل أنت متأكد من حذف أمر الصرف هذا؟ لا يمكن التراجع عن هذا الإجراء.",
       textConfirm: "حذف",
       textCancel: "إلغاء",
       buttonColor: Get.theme.colorScheme.error,
@@ -156,28 +170,33 @@ class OrdersController extends GetxController {
           await _provider.deleteOrder(id);
           fetchAllOrders(); // تحديث القائمة
           Get.defaultDialog(
-              title: "نجاح", middleText: "تم حذف أمر الصرف بنجاح.");
+            title: "نجاح",
+            middleText: "تم حذف أمر الصرف بنجاح.",
+          );
         } catch (e) {
           Get.defaultDialog(
-              title: "خطأ", middleText: "فشل حذف الأمر: ${e.toString()}");
+            title: "خطأ",
+            middleText: "فشل حذف الأمر: ${e.toString()}",
+          );
         }
       },
     );
   }
+
   void pickOrderImage() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
+      type: FileType.image,
     );
     if (result != null) {
       selectedImagePath.value = result.files.single.path!;
     }
   }
 
-
   void fetchBeneficiaries() async {
     try {
       beneficiariesList.assignAll(
-          await _beneficiaryProvider.getAllBeneficiaries());
+        await _beneficiaryProvider.getAllBeneficiaries(),
+      );
     } catch (e) {
       print("Error fetching beneficiaries: $e");
     }
@@ -198,23 +217,32 @@ class OrdersController extends GetxController {
 
   // --- ✅ جديد: دالة لتطبيق الفلترة والبحث ---
   void _applyFilters() {
-    List<DisbursementOrderModel> filteredList = List.from(_allOrders);
+    var filtered = _allOrders.where((order) {
+      // 1. Filter by Status
+      if (activeFilter.value != 'الكل' && order.status != activeFilter.value) {
+        return false;
+      }
 
-    // 1. تطبيق فلتر الحالة
-    if (activeFilter.value != 'الكل') {
-      filteredList = filteredList.where((order) => order.status == activeFilter.value).toList();
-    }
+      // 2. Filter by Search Keyword
+      final keyword = searchController.text.trim().toLowerCase();
+      if (keyword.isNotEmpty) {
+        final matchesNumber = order.orderNumber.toLowerCase().contains(keyword);
+        final matchesEntity =
+            order.issuingEntity?.toLowerCase().contains(keyword) ?? false;
 
-    // 2. تطبيق فلتر البحث النصي
-    final keyword = searchController.text.trim().toLowerCase();
-    if (keyword.isNotEmpty) {
-      filteredList = filteredList.where((order) =>
-      order.orderNumber.toLowerCase().contains(keyword) ||
-          (order.issuingEntity?.toLowerCase().contains(keyword) ?? false)
-      ).toList();
-    }
+        // يمكننا أيضاً البحث باسم المستفيد إذا أردنا:
+        // final beneficiaryName = getBeneficiaryNameById(order.beneficiaryId).toLowerCase();
+        // final matchesBeneficiary = beneficiaryName.contains(keyword);
 
-    ordersList.assignAll(filteredList);
+        if (!matchesNumber && !matchesEntity) {
+          return false; // && !matchesBeneficiary
+        }
+      }
+
+      return true;
+    }).toList();
+
+    ordersList.assignAll(filtered);
   }
 
   void onSearchChanged(String value) {
@@ -231,23 +259,85 @@ class OrdersController extends GetxController {
     _applyFilters();
   }
 
-  // --- ✅ جديد: دالة لجلب اسم المستفيد من الـ ID ---
+  // --- ✅ جديد: دالة لجلب اسم المستفيد من الـ ID بأمان ---
   String getBeneficiaryNameById(int? id) {
     if (id == null) return 'غير محدد';
+
+    // استخدام firstWhereOrNull لتجنب StateError إذا تم حذف المستفيد
+    final beneficiary = beneficiariesList.firstWhere(
+      (b) => b.id == id,
+      orElse: () => BeneficiaryModel(
+        id: -1,
+        name: 'مستفيد محذوف',
+        notes: '',
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    return beneficiary.name;
+  }
+
+  void showOrderDetails(DisbursementOrderModel order) {
+    Get.dialog(OrderDetailsDialog(order: order), barrierDismissible: true);
+  }
+
+  // --- ✅ جديد: جلب كل أوامر الصرف لمستفيد معين ---
+  List<DisbursementOrderModel> getOrdersForBeneficiary(int beneficiaryId) {
+    return _allOrders
+        .where((order) => order.beneficiaryId == beneficiaryId)
+        .toList();
+  }
+
+  // --- ✅ جديد: طباعة تقرير بأمر الصرف (فاتورة/سند) ---
+  void printOrderReport(DisbursementOrderModel order) async {
     try {
-      return beneficiariesList
-          .firstWhere((b) => b.id == id)
-          .name;
+      // 1. جلب العمليات المرتبطة بهذا الأمر
+      final transactionProvider = Get.put(TransactionProvider());
+      final transactions = await transactionProvider.getTransactionsForOrder(
+        order.id!,
+      );
+
+      if (transactions.isEmpty) {
+        Get.snackbar(
+          'تنبيه',
+          'لا توجد أصناف منصرفة في هذا الأمر لطباعتها',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // 2. تحميل الإعدادات
+      final settingsService = ReportSettingsService();
+      final settings = settingsService.loadSettings();
+
+      final beneficiaryName = getBeneficiaryNameById(order.beneficiaryId);
+
+      // 3. فتح المعاينة
+      Get.dialog(
+        PrintPreviewDialog(
+          initialSettings: settings,
+          initialRecipientName: beneficiaryName, // Auto-fill recipient name
+          pdfBuilder: (settings, suffix) async {
+            return ItemReportGenerator.generateOrderReportPdf(
+              transactions,
+              beneficiaryName,
+              order.orderNumber,
+              settings: settings,
+              recipientSuffix: suffix,
+            );
+          },
+        ),
+        barrierDismissible: false,
+      );
     } catch (e) {
-      return 'مستفيد محذوف';
+      Get.defaultDialog(
+        title: "خطأ",
+        middleText: "حدث خطأ أثناء إعداد السند: $e",
+      );
     }
   }
-  void showOrderDetails(DisbursementOrderModel order) {
-    Get.dialog(
-      OrderDetailsDialog(order: order),
-      barrierDismissible: true,
-    );
-  }
+
   @override
   void onClose() {
     orderNumberController.dispose();
@@ -257,6 +347,5 @@ class OrdersController extends GetxController {
     notesController.dispose();
     searchController.dispose(); // <-- ✅ التصحيح
     super.onClose();
-
   }
 }

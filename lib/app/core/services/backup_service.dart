@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart'; // ✅ إضافة هذا الاستيراد
 import 'package:medistock/app/data/local/db/database_handler.dart';
+import 'package:flutter/foundation.dart';
 
 class BackupService {
   /// دالة مساعدة للحصول على مسار قاعدة البيانات الجديد
@@ -57,7 +58,7 @@ class BackupService {
         'فشل إنشاء النسخة الاحتياطية: $e',
         snackPosition: SnackPosition.BOTTOM,
       );
-      print('Backup Error: $e');
+      debugPrint('Backup Error: $e');
       return false;
     }
   }
@@ -103,7 +104,7 @@ class BackupService {
         'فشل استعادة النسخة الاحتياطية: $e',
         snackPosition: SnackPosition.BOTTOM,
       );
-      print('Restore Error: $e');
+      debugPrint('Restore Error: $e');
       return false;
     }
   }

@@ -1,8 +1,9 @@
 import '../db/database_handler.dart'; // استيراد مسؤول قاعدة البيانات
-import '../models/item_model.dart';   // استيراد نموذج البيانات
+import '../models/item_model.dart'; // استيراد نموذج البيانات
 
 class ItemProvider {
-  final dbHandler = DatabaseHandler.instance;  // دالة لإضافة صنف جديد إلى قاعدة البيانات
+  final dbHandler =
+      DatabaseHandler.instance; // دالة لإضافة صنف جديد إلى قاعدة البيانات
   // تستقبل كائن `ItemModel` وترجع الـ ID الخاص به بعد الإضافة
   Future<int> addItem(ItemModel item) async {
     final db = await dbHandler.database;
@@ -15,7 +16,10 @@ class ItemProvider {
   Future<List<ItemModel>> getAllItems() async {
     final db = await dbHandler.database;
     // جلب كل البيانات من جدول 'items' وترتيبها حسب تاريخ الإضافة (الأحدث أولاً)
-    final List<Map<String, dynamic>> maps = await db.query('items', orderBy: 'created_at DESC');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'items',
+      orderBy: 'created_at DESC',
+    );
 
     // تحويل القائمة من Maps إلى قائمة من كائنات ItemModel
     return List.generate(maps.length, (i) {
@@ -41,17 +45,16 @@ class ItemProvider {
   Future<int> deleteItem(int id) async {
     final db = await dbHandler.database;
     // حذف الصنف الذي يتطابق الـ id الخاص به
-    return await db.delete(
-      'items',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('items', where: 'id = ?', whereArgs: [id]);
   }
 
   // --- جديد: دالة لجلب كل الوحدات ---
   Future<List<String>> getAllUnits() async {
     final db = await dbHandler.database;
-    final List<Map<String, dynamic>> maps = await db.query('units', orderBy: 'name ASC');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'units',
+      orderBy: 'name ASC',
+    );
 
     // تحويل القائمة من Maps إلى قائمة من النصوص (أسماء الوحدات)
     return List.generate(maps.length, (i) {
@@ -66,7 +69,11 @@ class ItemProvider {
     final List<Map<String, dynamic>> maps = await db.query(
       'items',
       where: 'name LIKE ? OR scientific_name LIKE ? OR item_code LIKE ?',
-      whereArgs: ['%$keyword%', '%$keyword%', '%$keyword%'], // استخدام % للبحث الجزئي
+      whereArgs: [
+        '%$keyword%',
+        '%$keyword%',
+        '%$keyword%',
+      ], // استخدام % للبحث الجزئي
       orderBy: 'created_at DESC',
     );
 
@@ -75,11 +82,14 @@ class ItemProvider {
       return ItemModel.fromMap(maps[i]);
     });
   }
+
   // --- ✅ جديد: دالة لجلب كل الأشكال الدوائية ---
   Future<List<String>> getAllItemForms() async {
     final db = await dbHandler.database;
-    final List<Map<String, dynamic>> maps =
-    await db.query('item_forms', orderBy: 'name ASC');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'item_forms',
+      orderBy: 'name ASC',
+    );
 
     // تحويل القائمة من Maps إلى قائمة من النصوص (أسماء الأشكال)
     return List.generate(maps.length, (i) {
@@ -87,7 +97,15 @@ class ItemProvider {
     });
   }
 
-// --- ✅ جديد: دوال إضافة وحذف الوحدات والأشكال ---
+  // --- ✅ جديد: دالة لجلب خريطة للأشكال الدوائية (ID -> Name) ---
+  Future<Map<int, String>> getItemFormsMap() async {
+    final db = await dbHandler.database;
+    final List<Map<String, dynamic>> maps = await db.query('item_forms');
+
+    return {for (var map in maps) map['id'] as int: map['name'] as String};
+  }
+
+  // --- ✅ جديد: دوال إضافة وحذف الوحدات والأشكال ---
 
   Future<int> addUnit(String name) async {
     final db = await dbHandler.database;

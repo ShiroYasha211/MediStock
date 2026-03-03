@@ -26,6 +26,8 @@ class DashboardController extends GetxController {
   // --- متغيرات الرسم البياني والجدول السريع ---
   var recentTransactions = <TransactionModel>[].obs;
   var allItems = <ItemModel>[].obs; // لتسهيل الحصول على اسم الصنف
+  var top5DisbursedItems =
+      <MapEntry<String, int>>[].obs; // ✅ جديد: بيانات الرسم البياني
 
   @override
   void onInit() {
@@ -62,28 +64,46 @@ class DashboardController extends GetxController {
       totalItemsCount.value = allItemsResult.length;
       final ninetyDaysFromNow = DateTime.now().add(const Duration(days: 90));
 
-      expiringSoonItems.assignAll(allItemsResult.where((item) =>
-      !item.expiryDate.isBefore(DateTime.now()) &&
-          item.expiryDate.isBefore(ninetyDaysFromNow)).toList());
+      expiringSoonItems.assignAll(
+        allItemsResult
+            .where(
+              (item) =>
+                  !item.expiryDate.isBefore(DateTime.now()) &&
+                  item.expiryDate.isBefore(ninetyDaysFromNow),
+            )
+            .toList(),
+      );
       expiringSoonCount.value = expiringSoonItems.length;
 
-      lowStockItems.assignAll(allItemsResult.where((item) =>
-      item.quantity > 0 && item.quantity <= item.alertLimit).toList());
+      lowStockItems.assignAll(
+        allItemsResult
+            .where(
+              (item) => item.quantity > 0 && item.quantity <= item.alertLimit,
+            )
+            .toList(),
+      );
       lowStockCount.value = lowStockItems.length;
 
       expiredCount.value = allItemsResult
           .where((item) => item.expiryDate.isBefore(DateTime.now()))
           .length;
-      expiredItems.assignAll(allItemsResult.where((item) =>
-          item.expiryDate.isBefore(DateTime.now())).toList()); // ✅
+      expiredItems.assignAll(
+        allItemsResult
+            .where((item) => item.expiryDate.isBefore(DateTime.now()))
+            .toList(),
+      ); // ✅
       expiredCount.value = expiredItems.length;
-      outOfStockItems.assignAll(allItemsResult.where((item) => item.quantity == 0).toList()); // ✅ جديد
+      outOfStockItems.assignAll(
+        allItemsResult.where((item) => item.quantity == 0).toList(),
+      ); // ✅ جديد
       outOfStockCount.value = outOfStockItems.length; // ✅ جديد
-
 
       // --- إعداد بيانات الجدول السريع ---
       // عرض آخر 5 عمليات فقط
       recentTransactions.assignAll(allTransactionsResult.take(5).toList());
+
+      // --- إعداد بيانات الرسم البياني (Top 5) ---
+      _calculateTop5DisbursedItems(allTransactionsResult);
     } catch (e) {
       print("Failed to load dashboard data: $e");
     } finally {
@@ -91,12 +111,25 @@ class DashboardController extends GetxController {
     }
   }
 
+  // --- ✅ جديد: دالة لحساب أكثر 5 أصناف تم صرفها للرسم البياني ---
+  void _calculateTop5DisbursedItems(List<TransactionModel> transactions) {
+    Map<String, int> itemCounts = {};
+    for (var transaction in transactions) {
+      final itemName = getItemNameById(transaction.itemId);
+      itemCounts[itemName] =
+          (itemCounts[itemName] ?? 0) + transaction.quantityDisbursed;
+    }
+
+    var sortedItems = itemCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    top5DisbursedItems.assignAll(sortedItems.take(5).toList());
+  }
+
   // دالة مساعدة للحصول على اسم الصنف من الـ ID
   String getItemNameById(int id) {
     try {
-      return allItems
-          .firstWhere((item) => item.id == id)
-          .name;
+      return allItems.firstWhere((item) => item.id == id).name;
     } catch (e) {
       return 'صنف محذوف';
     }

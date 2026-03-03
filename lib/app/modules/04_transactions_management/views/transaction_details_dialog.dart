@@ -4,8 +4,6 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:medistock/app/data/local/models/transaction_model.dart';
 import 'package:medistock/app/modules/04_transactions_management/controllers/transactions_controller.dart';
-import '../../../data/local/models/disbursement_order_model.dart';
-import '../../../data/local/models/item_model.dart';
 
 class TransactionDetailsDialog extends StatelessWidget {
   final TransactionModel transaction;
@@ -22,174 +20,438 @@ class TransactionDetailsDialog extends StatelessWidget {
     final returnStatus = controller.getReturnStatusForTransaction(transaction);
     final returnedQty = controller.getReturnedQuantity(transaction.id!);
     final isFullyReturned = returnStatus == 'مرتجع بالكامل';
-    return AlertDialog(
-      title: const Text('تفاصيل عملية الصرف'),
-      content: SizedBox(
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 10,
+      backgroundColor: Colors.transparent, // For gradient container
+      child: Container(
         width: MediaQuery.of(context).size.width * 0.7,
         height: MediaQuery.of(context).size.height * 0.75,
-        child: DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              const TabBar(
-                tabs: [
-                  Tab(icon: Icon(Icons.receipt_long), text: 'تفاصيل العملية'),
-                  Tab(icon: Icon(Icons.medication), text: 'تفاصيل الصنف المصروف'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildTransactionInfoTab(
-                      theme,
-                      item?.name ?? 'صنف محذوف',
-                      order,
-                      beneficiaryName,
-                      returnedQty, // ✅ تمرير الكمية المرتجعة
-                    ),
-                    _buildItemInfoTab(theme, item, order?.imagePath),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // --- Header ---
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.primaryColor,
+                    theme.primaryColor.withOpacity(0.8),
                   ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        if (isFullyReturned) // إذا كان مرتجع بالكامل
-          const Chip(
-            label: Text('مرتجع بالكامل'),
-            backgroundColor: Colors.grey,
-            labelStyle: TextStyle(color: Colors.white),
-          )
-        else // إذا لم يكن مرتجع بالكامل
-          ElevatedButton.icon(
-            onPressed: () {
-              Get.back();
-              controller.openReturnDialog(transaction);
-            },
-            icon: const Icon(Icons.undo),
-            label: const Text('إرجاع الصنف'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.errorContainer,
-              foregroundColor: theme.colorScheme.onErrorContainer,
-            ),
-          ),
-        const Spacer(),
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('إغلاق'),
-        ),
-      ],
-    );
-  }
-  Widget _buildTransactionInfoTab(ThemeData theme, String itemName,
-      DisbursementOrderModel? order, String beneficiaryName, int returnedQty) { // ✅ استقبال الكمية
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildDetailRow('الصنف المصروف:', itemName, theme, valueColor: theme.primaryColor),
-          _buildDetailRow('الكمية المصروفة:', '${transaction.quantityDisbursed}', theme),
-          // --- ✅ جديد: عرض الكمية المرتجعة ---
-          if (returnedQty > 0)
-            _buildDetailRow('الكمية المرتجعة:', '$returnedQty', theme, valueColor: theme.colorScheme.error),
-
-          _buildDetailRow('تاريخ الصرف:', DateFormat('yyyy-MM-dd, hh:mm a').format(transaction.transactionDate), theme),
-          if (transaction.notes != null && transaction.notes!.isNotEmpty)
-            _buildDetailRow('ملاحظات العملية:', transaction.notes!, theme),
-          const Divider(height: 30, thickness: 1),
-          Text('بناءً على أمر الصرف التالي:', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 10),
-          if (order != null) ...[
-            _buildDetailRow('رقم الأمر:', order.orderNumber, theme),
-            _buildDetailRow('تاريخ الأمر:', DateFormat('yyyy-MM-dd').format(order.orderDate), theme),
-            _buildDetailRow('الجهة الصادرة:', order.issuingEntity ?? 'غير محدد', theme),
-            _buildDetailRow('المستفيد:', beneficiaryName, theme),
-          ] else
-            const Text('بيانات أمر الصرف غير متاحة (قد يكون قد حُذف).'),
-        ],
-      ),
-    );
-  }
-  Widget _buildItemInfoTab(ThemeData theme, ItemModel? item,
-      String? orderImagePath) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: item != null
-                ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDetailRow('الاسم التجاري:', item.name, theme,
-                    valueColor: theme.primaryColor),
-                _buildDetailRow(
-                    'الاسم العلمي:', item.scientificName ?? 'لا يوجد', theme),
-                _buildDetailRow(
-                    'كود الصنف:', item.itemCode ?? 'لا يوجد', theme),
-                _buildDetailRow(
-                    'رقم التشغيلة:', item.batchNumber ?? 'لا يوجد', theme),
-                _buildDetailRow('تاريخ الإنتاج:',
-                    item.productionDate != null ? DateFormat('yyyy-MM-dd')
-                        .format(item.productionDate!) : 'لا يوجد', theme),
-                _buildDetailRow('تاريخ الانتهاء:',
-                    DateFormat('yyyy-MM-dd').format(item.expiryDate), theme),
-              ],
-            )
-                : const Text('بيانات الصنف غير متاحة (قد يكون قد حُذف).'),
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        // --- العمود الأيمن: صورة أمر الصرف ---
-        Expanded(
-          flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('صورة أمر الصرف:', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Center(
-                      child: (orderImagePath != null &&
-                          orderImagePath.isNotEmpty)
-                          ? InteractiveViewer(child: Image.file(File(
-                          orderImagePath), fit: BoxFit.contain))
-                          : const Text('لا توجد صورة مرفقة لأمر الصرف هذا'),
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long,
+                      color: Colors.white,
+                      size: 24,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  const Text(
+                    'تفاصيل الفاتورة / عملية الصرف',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isFullyReturned) // حالة الارتجاع في الترويسة
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'مرتجع بالكامل',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(width: 16),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Get.back(),
+                    tooltip: 'إغلاق',
+                  ),
+                ],
+              ),
             ),
-          ),
+            // --- Body Content (Split Layout) ---
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // عمود التفاصيل النصية
+                  Expanded(
+                    flex: 2,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'بيانات الصرف الأساسية',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDetailRow(
+                            Icons.inventory_2_outlined,
+                            'الصنف المصروف:',
+                            item?.name ?? 'غير معروف',
+                            theme,
+                            valueColor: theme.primaryColor,
+                          ),
+                          _buildDetailRow(
+                            Icons.unfold_more_rounded,
+                            'الكمية المصروفة:',
+                            '${transaction.quantityDisbursed}',
+                            theme,
+                          ),
+                          if (returnedQty > 0)
+                            _buildDetailRow(
+                              Icons.keyboard_return_rounded,
+                              'الكمية المرتجعة:',
+                              '$returnedQty',
+                              theme,
+                              valueColor: theme.colorScheme.error,
+                            ),
+                          _buildDetailRow(
+                            Icons.calendar_today_outlined,
+                            'تاريخ الصرف:',
+                            DateFormat(
+                              'yyyy-MM-dd, hh:mm a',
+                            ).format(transaction.transactionDate),
+                            theme,
+                          ),
+                          if (transaction.notes != null &&
+                              transaction.notes!.isNotEmpty)
+                            _buildDetailRow(
+                              Icons.notes_rounded,
+                              'ملاحظات العملية:',
+                              transaction.notes!,
+                              theme,
+                            ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24.0),
+                            child: Divider(),
+                          ),
+                          Text(
+                            'بناءً على أمر الصرف التالي:',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (order != null) ...[
+                            _buildDetailRow(
+                              Icons.confirmation_number_outlined,
+                              'رقم الأمر:',
+                              order.orderNumber,
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.event_outlined,
+                              'تاريخ الأمر:',
+                              DateFormat('yyyy-MM-dd').format(order.orderDate),
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.business_outlined,
+                              'الجهة الصادرة:',
+                              order.issuingEntity ?? 'غير محدد',
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.person_outline,
+                              'المستفيد:',
+                              beneficiaryName,
+                              theme,
+                            ),
+                          ] else
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'بيانات أمر الصرف غير متاحة (قد يكون قد حُذف).',
+                                style: TextStyle(color: Colors.orange.shade800),
+                              ),
+                            ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24.0),
+                            child: Divider(),
+                          ),
+                          Text(
+                            'معلومات الصنف من المخزن:',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (item != null) ...[
+                            _buildDetailRow(
+                              Icons.medication_outlined,
+                              'الاسم العلمي:',
+                              item.scientificName ?? 'لا يوجد',
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.qr_code_2_outlined,
+                              'كود الصنف:',
+                              item.itemCode ?? 'لا يوجد',
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.numbers_outlined,
+                              'رقم التشغيلة:',
+                              item.batchNumber ?? 'لا يوجد',
+                              theme,
+                            ),
+                            _buildDetailRow(
+                              Icons.date_range_outlined,
+                              'تاريخ الانتهاء:',
+                              DateFormat('yyyy-MM-dd').format(item.expiryDate),
+                              theme,
+                            ),
+                          ] else
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'بيانات الصنف غير متاحة (قد يكون قد حُذف من المستودع).',
+                                style: TextStyle(color: Colors.red.shade800),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, thickness: 1),
+                  // عمود الصورة المرفقة
+                  Expanded(
+                    flex: 3,
+                    child: Container(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.image_outlined,
+                                color: theme.primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'صورة أمر الصرف المرفقة',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Center(
+                                child:
+                                    (order?.imagePath != null &&
+                                        order!.imagePath!.isNotEmpty)
+                                    ? InteractiveViewer(
+                                        minScale: 0.5,
+                                        maxScale: 4.0,
+                                        child: Image.file(
+                                          File(order.imagePath!),
+                                          fit: BoxFit.contain,
+                                        ),
+                                      )
+                                    : Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.hide_image_outlined,
+                                            size: 64,
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'لا توجد صورة مرفقة لأمر الصرف هذا',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade500,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // --- Actions Footer ---
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  if (!isFullyReturned) // زر الإرجاع إن لم يكن مرتجع بالكامل
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Get.back();
+                        controller.openReturnDialog(transaction);
+                      },
+                      icon: const Icon(Icons.undo),
+                      label: const Text('إرجاع الصنف المعطى'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.errorContainer,
+                        foregroundColor: theme.colorScheme.onErrorContainer,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('إغلاق', style: TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   // --- ويدجت مساعد لعرض التفاصيل ---
-  Widget _buildDetailRow(String label, String value, ThemeData theme,
-      {Color? valueColor}) {
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value,
+    ThemeData theme, {
+    Color? valueColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 15)),
+          Icon(icon, size: 20, color: Colors.grey.shade500),
           const SizedBox(width: 8),
-          Expanded(child: SelectableText(value, style: TextStyle(
-              fontWeight: FontWeight.bold, fontSize: 15, color: valueColor))),
+          SizedBox(
+            width: 140, // Fixed width for labels to align values
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: valueColor ?? Colors.black87,
+              ),
+            ),
+          ),
         ],
       ),
     );

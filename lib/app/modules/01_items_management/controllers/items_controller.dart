@@ -9,8 +9,9 @@ import '../views/add_edit_item_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../views/manage_lookups_dialog.dart';
-import '../views/print_preview_dialog.dart'; // ✅ جديد
+import '../views/print_preview_dialog.dart'; // ✅ Restored
 import 'package:medistock/app/core/services/report_settings_service.dart'; // ✅ جديد
+import 'package:medistock/app/data/local/providers/transaction_provider.dart'; // ✅ جديد: جلب حركة الأصناف
 // --- ✅ تصحيح: توحيد مسار الاستيراد ---
 
 class ItemsController extends GetxController {
@@ -21,6 +22,8 @@ class ItemsController extends GetxController {
   var isGridView = false.obs;
   var itemFormsList = <String>[].obs; // ✅ جديد: قائمة الأشكال الدوائية
   var selectedItemForm = ''.obs; // ✅ جديد: الشكل الدوائي المختار
+  // --- ✅ جديد: خريطة لحفظ الكمية المنصرفة لكل صنف ---
+  var dispensedQuantitiesMap = <int, int>{}.obs;
   // --- ✅ جديد: متغيرات الفلترة والترتيب ---
   var activeFilter = 'الكل'.obs;
   var sortOption = 'الجديد'.obs;
@@ -58,6 +61,10 @@ class ItemsController extends GetxController {
   void onInit() {
     super.onInit();
     _initializeControllers();
+    // تأكد من تهيئة Providers المطلوبة
+    if (!Get.isRegistered<TransactionProvider>()) {
+      Get.put(TransactionProvider());
+    }
     fetchAllItems();
     fetchUnits();
     fetchItemForms(); // ✅ جديد: جلب الأشكال الدوائية عند بدء التشغيل
@@ -94,7 +101,7 @@ class ItemsController extends GetxController {
     try {
       isLoading(true);
       _allItems = await _provider.getAllItems();
-      _calculateStats();
+      await _calculateStats(); // Changed to await to fetch disbursed quantities
       _applyFiltersAndSort(); // <-- ✅ تم التعديل
     } catch (e) {
       _showErrorDialog('حدث خطأ أثناء جلب البيانات', e.toString());
@@ -104,9 +111,22 @@ class ItemsController extends GetxController {
     }
   }
 
-  void _calculateStats() {
+  Future<void> _calculateStats() async {
     totalItemsCount.value = _allItems.length;
     final ninetyDaysFromNow = DateTime.now().add(const Duration(days: 90));
+
+    // --- ✅ تم الحل (Phase 4): جلب الكميات المنصرفة لجميع الأصناف دفعة واحدة (Bulk Fetch) ---
+    // هذا يحل مشكلة الـ N+1 Query التي كانت تجمد الشاشة
+    final transactionProvider = Get.put(TransactionProvider());
+
+    try {
+      final bulkDispensedMap = await transactionProvider
+          .getBulkTotalDisbursedForItems();
+      dispensedQuantitiesMap.assignAll(bulkDispensedMap);
+    } catch (e) {
+      print("Error fetching bulk quantities: $e");
+    }
+
     expiringSoonCount.value = _allItems
         .where(
           (item) =>

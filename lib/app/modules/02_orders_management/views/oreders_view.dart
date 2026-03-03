@@ -33,7 +33,10 @@ class OrdersView extends StatelessWidget {
               }
               // --- ✅ جديد: عرض البطاقات ---
               return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 itemCount: controller.ordersList.length,
                 itemBuilder: (context, index) {
                   final order = controller.ordersList[index];
@@ -52,45 +55,101 @@ class OrdersView extends StatelessWidget {
     );
   }
 
-  // --- ✅ جديد: ويدجت لعناصر التحكم العلوية ---
+  // --- ✅ جديد: ويدجت لعناصر التحكم العلوية بالهوية الجديدة ---
   Widget _buildHeaderControls(OrdersController controller, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+      child: Column(
         children: [
-          // حقل البحث
-          Expanded(
-            child: TextField(
-              controller: controller.searchController,
-              onChanged: controller.onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'ابحث برقم الأمر أو الجهة الصادرة...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: controller.clearSearch,
-                ),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+          Row(
+            children: [
+              // حقل البحث
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: controller.searchController,
+                    onChanged: controller.onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'ابحث برقم الأمر أو الجهة الصادرة...',
+                      prefixIcon: Icon(Icons.search, color: theme.primaryColor),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: controller.clearSearch,
+                      ),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 20,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 20),
+          const SizedBox(height: 16),
           // فلاتر الحالة
-          Obx(
-                () => SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'الكل', label: Text('الكل')),
-                ButtonSegment(value: 'غير مستخدم', label: Text('غير مستخدم'), icon: Icon(Icons.radio_button_unchecked)),
-                ButtonSegment(value: 'مستخدم', label: Text('مستخدم'), icon: Icon(Icons.check_circle_outline)),
-              ],
-              selected: {controller.activeFilter.value},
-              onSelectionChanged: (newSelection) {
-                controller.changeFilter(newSelection.first);
-              },
+          SizedBox(
+            width: double.infinity,
+            child: Obx(
+              () => SegmentedButton<String>(
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.resolveWith<Color>((
+                    Set<MaterialState> states,
+                  ) {
+                    if (states.contains(MaterialState.selected)) {
+                      return theme.primaryColor.withOpacity(0.9);
+                    }
+                    return theme.colorScheme.surface;
+                  }),
+                  foregroundColor: MaterialStateProperty.resolveWith<Color>((
+                    Set<MaterialState> states,
+                  ) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Colors.white;
+                    }
+                    return theme.textTheme.bodyLarge!.color!;
+                  }),
+                  shape: MaterialStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                segments: const [
+                  ButtonSegment(value: 'الكل', label: Text('الكل')),
+                  ButtonSegment(
+                    value: 'غير مستخدم',
+                    label: Text('غير مستخدم'),
+                    icon: Icon(Icons.radio_button_unchecked, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: 'مستخدم',
+                    label: Text('مستخدم'),
+                    icon: Icon(Icons.check_circle_outline, size: 18),
+                  ),
+                ],
+                selected: {controller.activeFilter.value},
+                onSelectionChanged: (newSelection) {
+                  controller.changeFilter(newSelection.first);
+                },
+              ),
             ),
           ),
         ],
@@ -98,94 +157,283 @@ class OrdersView extends StatelessWidget {
     );
   }
 
-  // --- ✅ جديد: ويدجت لبناء بطاقة أمر الصرف ---
-  Widget _buildOrderCard(DisbursementOrderModel order, OrdersController controller, ThemeData theme) {
+  // --- ✅ جديد: ويدجت لبناء بطاقة أمر الصرف بالهوية الجديدة ---
+  Widget _buildOrderCard(
+    DisbursementOrderModel order,
+    OrdersController controller,
+    ThemeData theme,
+  ) {
     final isUsed = order.status == 'مستخدم';
-    final beneficiaryName = controller.getBeneficiaryNameById(order.beneficiaryId);
+    final beneficiaryName = controller.getBeneficiaryNameById(
+      order.beneficiaryId,
+    );
 
-    return InkWell(
-      onTap: () => controller.showOrderDetails(order),
-      borderRadius: BorderRadius.circular(12),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 16),
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(
-            color: isUsed ? Colors.grey.shade400 : theme.primaryColor,
-            width: 1.5,
+    final Color statusColor = isUsed
+        ? Colors.grey.shade600
+        : Colors.green.shade600;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(
+            isUsed ? 0.3 : 0.6,
           ),
-          borderRadius: BorderRadius.circular(12),
+          width: 1,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- الصف العلوي: الرقم، الحالة، الأزرار ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Chip(
-                    label: Text('رقم الأمر: ${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                  ),
-                  Chip(
-                    label: Text(order.status, style: TextStyle(color: isUsed ? Colors.black54 : Colors.white)),
-                    backgroundColor: isUsed ? Colors.grey.shade300 : Colors.green.shade600,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit_outlined, color: Colors.blue.shade700),
-                        onPressed: () => controller.openAddEditDialog(orderToEdit: order),
-                        tooltip: 'تعديل',
-                        splashRadius: 20,
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline, color: Colors.red.shade700),
-                        onPressed: () => controller.deleteOrder(order.id!),
-                        tooltip: 'حذف',
-                        splashRadius: 20,
-                      ),
-                    ],
-                  )
-                ],
-              ),
-              const Divider(height: 24),
-              // --- التفاصيل ---
-              Text.rich(
-                TextSpan(
-                  style: theme.textTheme.bodyLarge,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () => controller.showOrderDetails(order),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(18.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- الصف العلوي: الرقم، الحالة، الأزرار ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const TextSpan(text: 'بتاريخ: ', style: TextStyle(color: Colors.grey)),
-                    TextSpan(text: DateFormat('yyyy-MM-dd').format(order.orderDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const TextSpan(text: '، الصادر من: ', style: TextStyle(color: Colors.grey)),
-                    TextSpan(
-                        text: order.issuingEntity ?? 'غير محدد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    // رقم الأمر والحالة
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer
+                                  .withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.receipt_long,
+                                  size: 18,
+                                  color: theme.primaryColor,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  order.orderNumber,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: statusColor.withOpacity(0.5),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isUsed
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  size: 14,
+                                  color: statusColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  order.status,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // أزرار الإجراءات
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.print_rounded,
+                          color: Colors.blueGrey,
+                          tooltip: 'طباعة السند',
+                          onPressed: () => controller.printOrderReport(order),
+                        ),
+                        const SizedBox(width: 4),
+                        _buildActionButton(
+                          icon: Icons.edit_rounded,
+                          color: Colors.blue.shade700,
+                          tooltip: 'تعديل',
+                          onPressed: () =>
+                              controller.openAddEditDialog(orderToEdit: order),
+                        ),
+                        const SizedBox(width: 4),
+                        _buildActionButton(
+                          icon: Icons.delete_outline_rounded,
+                          color: Colors.red.shade700,
+                          tooltip: 'حذف',
+                          onPressed: () => controller.deleteOrder(order.id!),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text.rich(
-                TextSpan(
-                  style: theme.textTheme.bodyLarge,
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12.0),
+                  child: Divider(height: 1, color: Colors.black12),
+                ),
+                // --- التفاصيل السفلية ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const TextSpan(text: 'لصالح المستفيد: ', style: TextStyle(color: Colors.grey)),
-
-                    TextSpan(text: beneficiaryName, style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor)),
+                    // العمود الأول: التواريخ والجهات
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInfoRow(
+                            icon: Icons.domain,
+                            label: 'الجهة:',
+                            value: order.issuingEntity ?? 'غير محدد',
+                            theme: theme,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildInfoRow(
+                            icon: Icons.calendar_today,
+                            label: 'التاريخ:',
+                            value: DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(order.orderDate),
+                            theme: theme,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // العمود الثاني: المستفيد والملاحظات
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInfoRow(
+                            icon: Icons.person_pin,
+                            label: 'المستفيد:',
+                            value: beneficiaryName,
+                            theme: theme,
+                            valueColor: theme.primaryColor,
+                            isBoldValue: true,
+                          ),
+                          if (order.notes != null &&
+                              order.notes!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildInfoRow(
+                              icon: Icons.notes,
+                              label: 'ملاحظة:',
+                              value: order.notes!,
+                              theme: theme,
+                              maxLines: 2,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              if (order.notes != null && order.notes!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('ملاحظات: ${order.notes}', style: const TextStyle(color: Colors.black54, fontStyle: FontStyle.italic)),
-              ]
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  // --- دوال مساعدة للبطاقة ---
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: color, size: 20),
+        onPressed: onPressed,
+        tooltip: tooltip,
+        splashRadius: 20,
+        constraints: const BoxConstraints(),
+        padding: const EdgeInsets.all(8),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+    Color? valueColor,
+    bool isBoldValue = false,
+    int maxLines = 1,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade500),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBoldValue ? FontWeight.bold : FontWeight.normal,
+              color: valueColor ?? theme.textTheme.bodyLarge?.color,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

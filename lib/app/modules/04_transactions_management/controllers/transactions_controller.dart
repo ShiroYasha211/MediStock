@@ -14,7 +14,6 @@ import '../../02_orders_management/controllers/orders_controller.dart';
 import 'package:medistock/app/data/local/models/return_transaction_model.dart';
 import 'package:medistock/app/data/local/providers/return_transaction_provider.dart';
 
-
 import '../views/transaction_details_dialog.dart';
 
 class TransactionsController extends GetxController {
@@ -22,11 +21,13 @@ class TransactionsController extends GetxController {
   final TransactionProvider _transactionProvider = TransactionProvider();
   final OrderProvider _orderProvider = OrderProvider();
   final ItemProvider _itemProvider = ItemProvider();
-  final ReturnTransactionProvider _returnProvider = ReturnTransactionProvider(); // ✅ جديد
+  final ReturnTransactionProvider _returnProvider =
+      ReturnTransactionProvider(); // ✅ جديد
   late TextEditingController returnQuantityController;
   late TextEditingController returnReasonController;
   final formKeyReturn = GlobalKey<FormState>();
-  var returnedTransactionsInfo = <int, int>{}.obs; // Map<originalTransactionId, totalReturnedQuantity>
+  var returnedTransactionsInfo =
+      <int, int>{}.obs; // Map<originalTransactionId, totalReturnedQuantity>
   // --- ✅ جديد: متغيرات البحث والفلترة ---
   var _allTransactions = <TransactionModel>[];
   late TextEditingController searchController;
@@ -48,8 +49,10 @@ class TransactionsController extends GetxController {
 
   // --- متغيرات الخطوة 2: إضافة الأصناف ---
   var allItems = <ItemModel>[].obs; // كل الأصناف المتاحة للصرف
+  var itemFormsMap = <int, String>{}.obs; // ✅ جديد: خريطة الأشكال الدوائية
   var selectedItemId = Rxn<int>();
   late TextEditingController quantityController;
+  late FocusNode quantityFocusNode; // ✅ جديد
 
   // قائمة الأصناف المؤقتة التي سيتم صرفها في هذه العملية
   var itemsToDisburse = <Map<String, dynamic>>[].obs;
@@ -58,12 +61,12 @@ class TransactionsController extends GetxController {
   void onInit() {
     super.onInit();
     quantityController = TextEditingController();
+    quantityFocusNode = FocusNode(); // ✅ جديد
     fetchAllTransactions();
     // جلب البيانات اللازمة للحوار
     _fetchPrerequisites();
     _initializeControllers();
   }
-
 
   // الدالة الجديدة
   void _initializeControllers() {
@@ -79,10 +82,15 @@ class TransactionsController extends GetxController {
       _allOrders = await _orderProvider.getAllOrders();
 
       // ✅ جديد: فلترة الأوامر المتاحة من القائمة الكاملة
-      availableOrders.assignAll(_allOrders.where((o) => o.status == 'غير مستخدم'));
+      availableOrders.assignAll(
+        _allOrders.where((o) => o.status == 'غير مستخدم'),
+      );
 
       // جلب كل الأصناف المتوفرة
       allItems.assignAll(await _itemProvider.getAllItems());
+
+      // ✅ جديد: جلب خريطة الأشكال الدوائية
+      itemFormsMap.assignAll(await _itemProvider.getItemFormsMap());
     } catch (e) {
       debugPrint("Error fetching prerequisites: $e");
     }
@@ -96,7 +104,8 @@ class TransactionsController extends GetxController {
       final transactionsFuture = _transactionProvider.getAllTransactions();
       final returnsFuture = _returnProvider.getAllReturnTransactions();
 
-      final List<TransactionModel> transactionsResult = await transactionsFuture;
+      final List<TransactionModel> transactionsResult =
+          await transactionsFuture;
       final List<ReturnTransactionModel> returnsResult = await returnsFuture;
 
       // --- ✅ جديد: معالجة بيانات الإرجاع ---
@@ -105,14 +114,17 @@ class TransactionsController extends GetxController {
       for (var returnedItem in returnsResult) {
         final originalId = returnedItem.originalTransactionId;
         final quantity = returnedItem.quantityReturned;
-        returnedTransactionsInfo[originalId] = (returnedTransactionsInfo[originalId] ?? 0) + quantity;
+        returnedTransactionsInfo[originalId] =
+            (returnedTransactionsInfo[originalId] ?? 0) + quantity;
       }
 
       _allTransactions = transactionsResult;
       _applyFilters();
-
     } catch (e) {
-      Get.defaultDialog(title: "خطأ", middleText: "فشل جلب سجل العمليات: ${e.toString()}");
+      Get.defaultDialog(
+        title: "خطأ",
+        middleText: "فشل جلب سجل العمليات: ${e.toString()}",
+      );
     } finally {
       isLoading(false);
     }
@@ -128,10 +140,7 @@ class TransactionsController extends GetxController {
     selectedItemId.value = null;
     _fetchPrerequisites(); // تحديث القوائم
 
-    Get.dialog(
-      const AddTransactionDialog(),
-      barrierDismissible: false,
-    );
+    Get.dialog(const AddTransactionDialog(), barrierDismissible: false);
   }
 
   void nextStep() {
@@ -170,15 +179,15 @@ class TransactionsController extends GetxController {
 
     // التحقق من الكمية المتاحة
     if (quantity > item.quantity) {
-      Get.snackbar('خطأ', 'الكمية المطلوبة ($quantity}) أكبر من الكمية المتاحة (${item.quantity})');
+      Get.snackbar(
+        'خطأ',
+        'الكمية المطلوبة ($quantity}) أكبر من الكمية المتاحة (${item.quantity})',
+      );
       return;
     }
 
     // إضافة الصنف للقائمة المؤقتة
-    itemsToDisburse.add({
-      'item': item,
-      'quantity': quantity,
-    });
+    itemsToDisburse.add({'item': item, 'quantity': quantity});
 
     // تفريغ الحقول
     selectedItemId.value = null;
@@ -186,7 +195,105 @@ class TransactionsController extends GetxController {
   }
 
   void removeItemFromList(int itemId) {
-    itemsToDisburse.removeWhere((map) => (map['item'] as ItemModel).id == itemId);
+    itemsToDisburse.removeWhere(
+      (map) => (map['item'] as ItemModel).id == itemId,
+    );
+  }
+
+  // --- ✅ جديد: تعديل كمية صنف في القائمة المؤقتة ---
+  void updateItemQuantity(ItemModel item, int newQuantity) {
+    final index = itemsToDisburse.indexWhere(
+      (map) => (map['item'] as ItemModel).id == item.id,
+    );
+    if (index != -1) {
+      if (newQuantity > item.quantity) {
+        Get.snackbar(
+          'خطأ',
+          'الكمية المطلوبة ($newQuantity) أكبر من الكمية المتاحة (${item.quantity})',
+        );
+        return;
+      }
+      // Create a new map to ensure strict immutability if needed, though Maps are mutable.
+      // But replacing the element triggers GetX update better.
+      itemsToDisburse[index] = {'item': item, 'quantity': newQuantity};
+      // Force refresh if needed, but assigning to index usually works for RxList
+      itemsToDisburse.refresh();
+    }
+  }
+
+  // --- ✅ جديد: فتح حوار تعديل الكمية ---
+  void openEditItemDialog(Map<String, dynamic> entry) {
+    final ItemModel item = entry['item'];
+    final int currentQuantity = entry['quantity'];
+    final editQtyController = TextEditingController(
+      text: currentQuantity.toString(),
+    );
+
+    Get.dialog(
+      AlertDialog(
+        title: Text('تعديل كمية: ${item.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // تفاصيل إضافية
+            if (item.formId != null && itemFormsMap.containsKey(item.formId))
+              Text(
+                'الشكل الدوائي: ${itemFormsMap[item.formId]}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            if (item.unit != null && item.unit!.isNotEmpty)
+              Text(
+                'الوحدة: ${item.unit}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            Text(
+              'تاريخ الانتهاء: ${item.expiryDate.toString().split(' ')[0]}',
+              style: const TextStyle(color: Colors.red),
+            ),
+            const Divider(),
+            Text('الكمية المتاحة في المخزون: ${item.quantity}'),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: editQtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'الكمية الجديدة',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+              onFieldSubmitted: (val) {
+                final newQty = int.tryParse(val);
+                if (newQty != null && newQty > 0 && newQty <= item.quantity) {
+                  updateItemQuantity(item, newQty);
+                  Get.back();
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              final newQty = int.tryParse(editQtyController.text);
+              if (newQty == null || newQty <= 0) {
+                Get.snackbar('خطأ', 'الرجاء إدخال كمية صحيحة');
+                return;
+              }
+              if (newQty > item.quantity) {
+                Get.snackbar('خطأ', 'الكمية أكبر من المتاح (${item.quantity})');
+                return;
+              }
+
+              updateItemQuantity(item, newQty);
+              Get.back();
+            },
+            child: const Text('حفظ التعديل'),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- ✅ جديد: الدالة الأهم لتنفيذ عملية الصرف ---
@@ -234,14 +341,20 @@ class TransactionsController extends GetxController {
 
       // إذا نجحت كل العمليات
       Get.back(); // إغلاق حوار الصرف
-      Get.defaultDialog(title: "نجاح", middleText: "تم تنفيذ عملية الصرف بنجاح.");
+      Get.defaultDialog(
+        title: "نجاح",
+        middleText: "تم تنفيذ عملية الصرف بنجاح.",
+      );
       // تحديث كل الواجهات المتأثرة
       fetchAllTransactions();
       if (Get.isRegistered<ItemsController>()) {
         Get.find<ItemsController>().fetchAllItems();
       }
     } catch (e) {
-      Get.defaultDialog(title: "خطأ فادح", middleText: "فشل تنفيذ عملية الصرف: ${e.toString()}");
+      Get.defaultDialog(
+        title: "خطأ فادح",
+        middleText: "فشل تنفيذ عملية الصرف: ${e.toString()}",
+      );
     }
   }
 
@@ -249,27 +362,29 @@ class TransactionsController extends GetxController {
 
   String getItemNameById(int id) {
     // ابحث في قائمة الأصناف التي تم جلبها
-    final item = allItems.firstWhere((item) => item.id == id,
-        orElse: () =>
-            ItemModel(
-              name: 'صنف محذوف',
-              expiryDate: DateTime.now(),
-              quantity: 0,
-              createdAt: DateTime.now(),
-            ));
+    final item = allItems.firstWhere(
+      (item) => item.id == id,
+      orElse: () => ItemModel(
+        name: 'صنف محذوف',
+        expiryDate: DateTime.now(),
+        quantity: 0,
+        createdAt: DateTime.now(),
+      ),
+    );
     return item.name;
   }
 
   String getOrderNumberById(int id) {
     // ابحث في قائمة أوامر الصرف التي تم جلبها
-    final order = _allOrders.firstWhere((order) => order.id == id,
-        orElse: () =>
-            DisbursementOrderModel(
-                orderNumber: 'أمر محذوف',
-                orderDate: DateTime.now(),
-                status: '',
-              createdAt: DateTime.now(),
-            ));
+    final order = _allOrders.firstWhere(
+      (order) => order.id == id,
+      orElse: () => DisbursementOrderModel(
+        orderNumber: 'أمر محذوف',
+        orderDate: DateTime.now(),
+        status: '',
+        createdAt: DateTime.now(),
+      ),
+    );
     return order.orderNumber;
   }
 
@@ -292,46 +407,64 @@ class TransactionsController extends GetxController {
     // --- الخطوة 1: تطبيق فلتر الحالة (مرتجع / غير مرتجع) ---
     switch (activeStatusFilter.value) {
       case 'مرتجع':
-        filteredList = filteredList.where((t) => returnedTransactionsInfo.containsKey(t.id)).toList();
+        filteredList = filteredList
+            .where((t) => returnedTransactionsInfo.containsKey(t.id))
+            .toList();
         break;
       case 'غير مرتجع':
-        filteredList = filteredList.where((t) => !returnedTransactionsInfo.containsKey(t.id)).toList();
+        filteredList = filteredList
+            .where((t) => !returnedTransactionsInfo.containsKey(t.id))
+            .toList();
         break;
-    // case 'الكل': لا تفعل شيئاً
+      // case 'الكل': لا تفعل شيئاً
     }
 
     // --- الخطوة 2: تطبيق فلتر التاريخ ---
     final now = DateTime.now();
     switch (activeDateFilter.value) {
       case 'اليوم':
-        filteredList = filteredList.where((t) =>
-        t.transactionDate.year == now.year &&
-            t.transactionDate.month == now.month &&
-            t.transactionDate.day == now.day).toList();
+        filteredList = filteredList
+            .where(
+              (t) =>
+                  t.transactionDate.year == now.year &&
+                  t.transactionDate.month == now.month &&
+                  t.transactionDate.day == now.day,
+            )
+            .toList();
         break;
       case 'آخر 7 أيام':
         final weekAgo = now.subtract(const Duration(days: 7));
-        filteredList = filteredList.where((t) => t.transactionDate.isAfter(weekAgo)).toList();
+        filteredList = filteredList
+            .where((t) => t.transactionDate.isAfter(weekAgo))
+            .toList();
         break;
       case 'هذا الشهر':
-        filteredList = filteredList.where((t) =>
-        t.transactionDate.year == now.year &&
-            t.transactionDate.month == now.month).toList();
+        filteredList = filteredList
+            .where(
+              (t) =>
+                  t.transactionDate.year == now.year &&
+                  t.transactionDate.month == now.month,
+            )
+            .toList();
         break;
-    // case 'الكل': لا تفعل شيئاً
+      // case 'الكل': لا تفعل شيئاً
     }
 
-    // --- الخطوة 3: تطبيق فلتر البحث النصي (باسم الصنف) ---
+    // --- الخطوة 3: تطبيق فلتر البحث النصي (باسم الصنف أو رقم الأمر) ---
     final keyword = searchController.text.trim().toLowerCase();
     if (keyword.isNotEmpty) {
       filteredList = filteredList.where((t) {
         final itemName = getItemNameById(t.itemId).toLowerCase();
-        return itemName.contains(keyword);
+        final orderNumber = getOrderNumberById(t.orderId).toLowerCase();
+
+        // يمكن البحث باسم الصنف أو رقم التشغيلة أو رقم أمر الصرف
+        return itemName.contains(keyword) || orderNumber.contains(keyword);
       }).toList();
     }
 
     transactionsList.assignAll(filteredList);
   }
+
   // --- ✅ جديد: دوال للتحكم من الواجهة ---
   void onSearchChanged(String value) {
     _applyFilters();
@@ -346,10 +479,12 @@ class TransactionsController extends GetxController {
     activeDateFilter.value = newFilter;
     _applyFilters();
   }
+
   void changeStatusFilter(String newFilter) {
     activeStatusFilter.value = newFilter;
     _applyFilters();
   }
+
   // --- ✅ جديد: دوال للحصول على الكائنات الكاملة ---
   ItemModel? getItemById(int id) {
     try {
@@ -379,10 +514,9 @@ class TransactionsController extends GetxController {
   String getBeneficiaryNameById(int? id) {
     if (id == null) return 'غير محدد';
     try {
-
       if (Get.isRegistered<OrdersController>()) {
-    final ordersController = Get.find<OrdersController>();
-    return ordersController.getBeneficiaryNameById(id);
+        final ordersController = Get.find<OrdersController>();
+        return ordersController.getBeneficiaryNameById(id);
       }
       return '...'; // نص مؤقت إذا لم يتم العثور على الـ Controller
     } catch (e) {
@@ -392,7 +526,8 @@ class TransactionsController extends GetxController {
 
   // --- ✅ جديد: الدالة الأهم لتنفيذ عملية الإرجاع ---
   Future<void> executeReturnTransaction(
-      TransactionModel originalTransaction) async {
+    TransactionModel originalTransaction,
+  ) async {
     if (!formKeyReturn.currentState!.validate()) return;
 
     final quantityToReturn = int.parse(returnQuantityController.text);
@@ -401,7 +536,9 @@ class TransactionsController extends GetxController {
 
     if (item == null) {
       Get.defaultDialog(
-          title: "خطأ", middleText: "الصنف الأصلي لم يعد موجوداً.");
+        title: "خطأ",
+        middleText: "الصنف الأصلي لم يعد موجوداً.",
+      );
       return;
     }
 
@@ -442,8 +579,10 @@ class TransactionsController extends GetxController {
         Get.find<DashboardController>().fetchDashboardData();
       }
     } catch (e) {
-      Get.defaultDialog(title: "خطأ فادح",
-          middleText: "فشل تنفيذ عملية الإرجاع: ${e.toString()}");
+      Get.defaultDialog(
+        title: "خطأ فادح",
+        middleText: "فشل تنفيذ عملية الإرجاع: ${e.toString()}",
+      );
     }
   }
 
@@ -454,33 +593,36 @@ class TransactionsController extends GetxController {
     returnReasonController.clear();
 
     // حساب الكميةالتي يمكن إرجاعها
-    final alreadyReturned =
-    await _returnProvider.getReturnedQuantityForTransaction(
-        originalTransaction.id!);
+    final alreadyReturned = await _returnProvider
+        .getReturnedQuantityForTransaction(originalTransaction.id!);
     final maxReturnable =
         originalTransaction.quantityDisbursed - alreadyReturned;
 
     if (maxReturnable <= 0) {
       Get.defaultDialog(
-          title: "مكتمل",
-          middleText: "تم إرجاع كل الكمية المصروفة من هذا الصنف بالفعل.");
+        title: "مكتمل",
+        middleText: "تم إرجاع كل الكمية المصروفة من هذا الصنف بالفعل.",
+      );
       return;
     }
 
-    Get.dialog(AlertDialog(
+    Get.dialog(
+      AlertDialog(
         title: const Text('إرجاع صنف'),
         content: Form(
-            key: formKeyReturn,
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                Text("الكمية القصوى الممكن إرجاعها: $maxReturnable"),
-            const SizedBox(height: 16),
-            TextFormField(
+          key: formKeyReturn,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("الكمية القصوى الممكن إرجاعها: $maxReturnable"),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: returnQuantityController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'الكمية المرتجعة', border: OutlineInputBorder()),
+                  labelText: 'الكمية المرتجعة',
+                  border: OutlineInputBorder(),
+                ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'هذا الحقل مطلوب';
@@ -494,48 +636,51 @@ class TransactionsController extends GetxController {
                   }
                   return null;
                 },
-            ),
-            const SizedBox(height: 16),
-                  TextFormField(
-                    controller: returnReasonController,
-                    decoration: const InputDecoration(
-                        labelText: 'سبب الإرجاع (اختياري)',
-                        border: OutlineInputBorder()),
-                  ),
-                ],
-            ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: returnReasonController,
+                decoration: const InputDecoration(
+                  labelText: 'سبب الإرجاع (اختياري)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [TextButton(
-            onPressed: () => Get.back(), child: const Text('إلغاء')),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () => executeReturnTransaction(originalTransaction),
             child: const Text('تنفيذ الإرجاع'),
           ),
         ],
-    ),
+      ),
     );
   }
+
   // --- ✅ جديد: دالة مساعدة لمعرفة حالة الإرجاع ---
   String getReturnStatusForTransaction(TransactionModel transaction) {
     final returnedQty = returnedTransactionsInfo[transaction.id] ?? 0;
 
-  if (returnedQty == 0) {
-    return 'لم يرجع';
-  } else if (returnedQty >= transaction.quantityDisbursed) {
-    return 'مرتجع بالكامل';
-  } else {
-    return 'مرتجع جزئياً';
+    if (returnedQty == 0) {
+      return 'لم يرجع';
+    } else if (returnedQty >= transaction.quantityDisbursed) {
+      return 'مرتجع بالكامل';
+    } else {
+      return 'مرتجع جزئياً';
+    }
   }
-  }
+
   // --- ✅ جديد: دالة للحصول على الكمية المرتجعة ---
   int getReturnedQuantity(int originalTransactionId) {
     return returnedTransactionsInfo[originalTransactionId] ?? 0;
   }
 
-
   @override
   void onClose() {
     quantityController.dispose();
+    quantityFocusNode.dispose(); // ✅ جديد
     searchController.dispose();
     returnQuantityController.dispose();
     returnReasonController.dispose();

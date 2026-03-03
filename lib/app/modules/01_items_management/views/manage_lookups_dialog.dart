@@ -5,16 +5,13 @@ import '../controllers/items_controller.dart'; // enum لتحديد نوع ال�
 enum LookupType { units, itemForms }
 
 class ManageLookupsDialog extends StatelessWidget {
-
   final LookupType type;
 
-  const ManageLookupsDialog
-      ({super.key, required this.type});
+  const ManageLookupsDialog({super.key, required this.type});
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<ItemsController>();
-    final theme = Theme.of(context);
     final title = type == LookupType.units
         ? 'إدارة الوحدات'
         : 'إدارة الأشكال الدوائية';
@@ -25,14 +22,8 @@ class ManageLookupsDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(title),
       content: SizedBox(
-        width: MediaQuery
-            .of(context)
-            .size
-            .width * 0.3,
-        height: MediaQuery
-            .of(context)
-            .size
-            .height * 0.5,
+        width: MediaQuery.of(context).size.width * 0.3,
+        height: MediaQuery.of(context).size.height * 0.5,
         child: Column(
           children: [
             // حقل الإضافة
@@ -50,32 +41,30 @@ class ManageLookupsDialog extends StatelessWidget {
             // قائمة العناصر الحالية
             Expanded(
               child: Obx(
-                    () =>
-                    ListView.builder(
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final item = list[index];
-                        return ListTile(
-                          title: Text(item),
-                          trailing: IconButton(
-                            icon: const Icon(
-                                Icons.delete_outline, color: Colors.red),
-                            onPressed: () =>
-                                controller.deleteLookupItem(item, type),
-                          ),
-                        );
-                      },
-                    ),
+                () => ListView.builder(
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final item = list[index];
+                    return ListTile(
+                      title: Text(item),
+                      trailing: IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        onPressed: () =>
+                            controller.deleteLookupItem(item, type),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('إغلاق'),
-        ),
+        TextButton(onPressed: () => Get.back(), child: const Text('إغلاق')),
       ],
     );
   }

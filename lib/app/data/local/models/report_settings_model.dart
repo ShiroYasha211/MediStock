@@ -32,9 +32,34 @@ class ReportLine {
   }
 }
 
+class SignatureModel {
+  String rank;
+  String name;
+  String title;
+
+  SignatureModel({this.rank = '', this.name = '', required this.title});
+
+  Map<String, dynamic> toJson() => {'rank': rank, 'name': name, 'title': title};
+
+  factory SignatureModel.fromJson(Map<String, dynamic> json) {
+    return SignatureModel(
+      rank: json['rank']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+    );
+  }
+}
+
 class ReportSettingsModel {
   // Header
   List<ReportLine> headerRightLines;
+  String headerRightType; // 'text' or 'image'
+  String? headerRightImagePath;
+  double headerRightImageWidth;
+  double headerRightImageHeight;
+  double headerRightImageDx;
+  double headerRightImageDy;
+
   List<ReportLine> headerLeftLines;
   String? logoPath;
 
@@ -44,16 +69,32 @@ class ReportSettingsModel {
   ReportLine introText;
   ReportLine listDescription;
   ReportLine closingText;
+  String tableColumnMode; // 'single' or 'dual'
 
   // Footer
-  List<ReportLine> signatories;
+  List<SignatureModel> signatures; // ✅ New structured signatures
+  bool
+  signaturesOnFirstPage; // ✅ New: Toggle signatures on first page or last page
 
   // Global Defaults
   double bodyFontSize;
   bool bodyIsBold;
 
+  // Margins (in cm)
+  double marginTop;
+  double marginBottom;
+  double marginLeft;
+  double marginRight;
+  double recipientSuffixMargin; // ✅ Margin for the footer suffix (المحترم)
+
   ReportSettingsModel({
     required this.headerRightLines,
+    this.headerRightType = 'text',
+    this.headerRightImagePath,
+    this.headerRightImageWidth = 80.0,
+    this.headerRightImageHeight = 80.0,
+    this.headerRightImageDx = 0.0,
+    this.headerRightImageDy = 0.0,
     required this.headerLeftLines,
     this.logoPath,
     required this.reportTitle,
@@ -61,9 +102,16 @@ class ReportSettingsModel {
     required this.introText,
     required this.listDescription,
     required this.closingText,
-    required this.signatories,
+    this.tableColumnMode = 'single',
+    required this.signatures,
     this.bodyFontSize = 12.0,
     this.bodyIsBold = false,
+    this.marginTop = 1.0,
+    this.marginBottom = 1.0,
+    this.marginLeft = 1.0,
+    this.marginRight = 1.0,
+    this.recipientSuffixMargin = 50.0, // Default to 50 logical pixels
+    this.signaturesOnFirstPage = false, // Default to Last Page
   });
 
   factory ReportSettingsModel.defaults() {
@@ -100,6 +148,11 @@ class ReportSettingsModel {
           align: 'center',
         ),
       ],
+      headerRightType: 'text',
+      headerRightImageWidth: 80.0,
+      headerRightImageHeight: 80.0,
+      headerRightImageDx: 0.0,
+      headerRightImageDy: 0.0,
       headerLeftLines: [
         ReportLine(
           text: 'يعتمــد /',
@@ -159,40 +212,33 @@ class ReportSettingsModel {
         isBold: true,
         align: 'center',
       ),
-      signatories: [
-        ReportLine(
-          text: 'الركن الطبي',
-          fontSize: 14,
-          isBold: true,
-          align: 'center',
-        ),
-        ReportLine(
-          text: 'المخازن',
-          fontSize: 14,
-          isBold: true,
-          align: 'center',
-        ),
-        ReportLine(
-          text: 'التموين الطبي',
-          fontSize: 14,
-          isBold: true,
-          align: 'center',
-        ),
-        ReportLine(
-          text: 'رئيس الشعبة',
-          fontSize: 14,
-          isBold: true,
-          align: 'center',
-        ),
+      tableColumnMode: 'single',
+      signatures: [
+        SignatureModel(title: 'الركن الطبي'),
+        SignatureModel(title: 'المخازن'),
+        SignatureModel(title: 'التموين الطبي'),
+        SignatureModel(title: 'رئيس الشعبة'),
       ],
       bodyFontSize: 12.0,
       bodyIsBold: true,
+      marginTop: 1.0,
+      marginBottom: 1.0,
+      marginLeft: 1.0,
+      marginRight: 1.0,
+      recipientSuffixMargin: 50.0,
+      signaturesOnFirstPage: false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'headerRightLines': headerRightLines.map((e) => e.toJson()).toList(),
+      'headerRightType': headerRightType,
+      'headerRightImagePath': headerRightImagePath,
+      'headerRightImageWidth': headerRightImageWidth,
+      'headerRightImageHeight': headerRightImageHeight,
+      'headerRightImageDx': headerRightImageDx,
+      'headerRightImageDy': headerRightImageDy,
       'headerLeftLines': headerLeftLines.map((e) => e.toJson()).toList(),
       'logoPath': logoPath,
       'reportTitle': reportTitle.toJson(),
@@ -200,9 +246,16 @@ class ReportSettingsModel {
       'introText': introText.toJson(),
       'listDescription': listDescription.toJson(),
       'closingText': closingText.toJson(),
-      'signatories': signatories.map((e) => e.toJson()).toList(),
+      'tableColumnMode': tableColumnMode,
+      'signatures': signatures.map((e) => e.toJson()).toList(),
       'bodyFontSize': bodyFontSize,
       'bodyIsBold': bodyIsBold,
+      'marginTop': marginTop,
+      'marginBottom': marginBottom,
+      'marginLeft': marginLeft,
+      'marginRight': marginRight,
+      'recipientSuffixMargin': recipientSuffixMargin,
+      'signaturesOnFirstPage': signaturesOnFirstPage,
     };
   }
 
@@ -261,8 +314,44 @@ class ReportSettingsModel {
       );
     }
 
+    // MIGRATION LOGIC for Signatures
+    List<SignatureModel> parseSignatures(dynamic list) {
+      if (list == null) return [];
+      if (list is List) {
+        return list.map((e) {
+          if (e is String) {
+            // Old simple string format -> Title
+            return SignatureModel(title: e);
+          }
+          if (e is Map) {
+            // Could be old ReportLine map OR new SignatureModel map
+            final map = Map<String, dynamic>.from(e);
+            if (map.containsKey('text')) {
+              // It's likely an old ReportLine
+              return SignatureModel(title: map['text'].toString());
+            }
+            // Assume it's the new model
+            return SignatureModel.fromJson(map);
+          }
+          return SignatureModel(title: '');
+        }).toList();
+      }
+      return [];
+    }
+
+    // Check key compatibility
+    final sigs =
+        json['signatures'] ?? json['signatories']; // Fallback to old key
+
     return ReportSettingsModel(
       headerRightLines: parseLines(json['headerRightLines']),
+      headerRightType: json['headerRightType'] ?? 'text',
+      headerRightImagePath: json['headerRightImagePath'],
+      headerRightImageWidth: (json['headerRightImageWidth'] ?? 80.0).toDouble(),
+      headerRightImageHeight: (json['headerRightImageHeight'] ?? 80.0)
+          .toDouble(),
+      headerRightImageDx: (json['headerRightImageDx'] ?? 0.0).toDouble(),
+      headerRightImageDy: (json['headerRightImageDy'] ?? 0.0).toDouble(),
       headerLeftLines: parseLines(json['headerLeftLines']),
       logoPath: json['logoPath'],
       reportTitle: parseLine(
@@ -299,9 +388,16 @@ class ReportSettingsModel {
         bold: true,
         align: 'center',
       ),
-      signatories: parseLines(json['signatories']),
+      tableColumnMode: json['tableColumnMode'] ?? 'single',
+      signatures: parseSignatures(sigs),
       bodyFontSize: (json['bodyFontSize'] ?? 12.0).toDouble(),
       bodyIsBold: json['bodyIsBold'] ?? false,
+      marginTop: (json['marginTop'] ?? 1.0).toDouble(),
+      marginBottom: (json['marginBottom'] ?? 1.0).toDouble(),
+      marginLeft: (json['marginLeft'] ?? 1.0).toDouble(),
+      marginRight: (json['marginRight'] ?? 1.0).toDouble(),
+      recipientSuffixMargin: (json['recipientSuffixMargin'] ?? 50.0).toDouble(),
+      signaturesOnFirstPage: json['signaturesOnFirstPage'] ?? false,
     );
   }
 }

@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
+import 'package:intl/intl.dart';
 import '../../../data/local/models/report_settings_model.dart';
 
 // تعريف نوع الدالة التي ستقوم بتوليد التقرير بناءً على الإعدادات المعدلة
@@ -97,32 +101,26 @@ class _PrintPreviewDialogState extends State<PrintPreviewDialog> {
   // --- إدارة الموقعين (Signatories) ---
   void _addSignatory() {
     setState(() {
-      currentSettings.signatories.add(
-        ReportLine(
-          text: 'توقيع جديد',
-          fontSize: 12,
-          isBold: false,
-          align: 'center',
-          isUnderlined: false,
-        ),
-      );
-    });
-    // Force rebuild of edit dialog? No need if we rely on Get.dialog logic or statefulbuilder
-    Get.back();
-    _showEditDialog(); // Hacky refresh: close and reopen
-  }
-
-  void _removeSignatory(int index) {
-    setState(() {
-      currentSettings.signatories.removeAt(index);
+      currentSettings.signatures.add(SignatureModel(title: 'توقيع جديد'));
     });
     Get.back();
     _showEditDialog();
   }
 
-  void _updateSignatoryText(int index, String newVal) {
-    // No setstate needed here as it binds to object, but good for safety
-    currentSettings.signatories[index].text = newVal;
+  void _removeSignatory(int index) {
+    setState(() {
+      currentSettings.signatures.removeAt(index);
+    });
+    Get.back();
+    _showEditDialog();
+  }
+
+  // Helper to update signature fields
+  void _updateSignatory(int index, String field, String val) {
+    final sig = currentSettings.signatures[index];
+    if (field == 'rank') sig.rank = val;
+    if (field == 'name') sig.name = val;
+    if (field == 'title') sig.title = val;
   }
 
   void _showEditDialog() {
@@ -158,48 +156,136 @@ class _PrintPreviewDialogState extends State<PrintPreviewDialog> {
                         'اللقب الختامي (مثل: المحترم)',
                         suffixController,
                       ),
+                      // ✅ Slider for recipientSuffixMargin
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: StatefulBuilder(
+                          builder: (context, setStateBuilder) {
+                            return Row(
+                              children: [
+                                const Text('إزاحة اللقب الختامي:'),
+                                Expanded(
+                                  child: Slider(
+                                    min: 0,
+                                    max: 300,
+                                    divisions: 30,
+                                    value: currentSettings.recipientSuffixMargin
+                                        .clamp(0.0, 300.0),
+                                    onChanged: (val) {
+                                      setStateBuilder(() {
+                                        currentSettings.recipientSuffixMargin =
+                                            val;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                Text(
+                                  currentSettings.recipientSuffixMargin
+                                      .toStringAsFixed(0),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                       _buildField('المقدمة (التحية)', introController),
                       _buildField('وصف القائمة', descController),
                       _buildField('الخاتمة', closingController),
                       const SizedBox(height: 20),
                       _buildSectionHeader('الموقعون (سلسلة التوقيعات)'),
-                      ...currentSettings.signatories.asMap().entries.map((
+                      StatefulBuilder(
+                        builder: (context, setStateBuilder) {
+                          return SwitchListTile(
+                            title: const Text(
+                              'إظهار التوقيعات في الصفحة الأولى بدلاً من الأخيرة',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            value:
+                                currentSettings.signaturesOnFirstPage == true,
+                            onChanged: (val) {
+                              setStateBuilder(() {
+                                currentSettings.signaturesOnFirstPage = val;
+                              });
+                            },
+                            contentPadding: EdgeInsets.zero,
+                          );
+                        },
+                      ),
+                      ...currentSettings.signatures.asMap().entries.map((
                         entry,
                       ) {
                         final index = entry.key;
                         final sig = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: sig.text,
-                                  decoration: InputDecoration(
-                                    labelText: 'الموقع ${index + 1}',
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8.0),
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        initialValue: sig.rank,
+                                        decoration: const InputDecoration(
+                                          labelText: 'الرتبة',
+                                          isDense: true,
+                                        ),
+                                        onChanged: (val) => _updateSignatory(
+                                          index,
+                                          'rank',
+                                          val,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      flex: 2,
+                                      child: TextFormField(
+                                        initialValue: sig.name,
+                                        decoration: const InputDecoration(
+                                          labelText: 'الاسم',
+                                          isDense: true,
+                                        ),
+                                        onChanged: (val) => _updateSignatory(
+                                          index,
+                                          'name',
+                                          val,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  initialValue: sig.title,
+                                  decoration: const InputDecoration(
+                                    labelText: 'الصفة',
                                     isDense: true,
-                                    border: const OutlineInputBorder(),
                                   ),
                                   onChanged: (val) =>
-                                      _updateSignatoryText(index, val),
+                                      _updateSignatory(index, 'title', val),
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete,
-                                  color: Colors.red,
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () => _removeSignatory(index),
+                                  ),
                                 ),
-                                onPressed: () => _removeSignatory(index),
-                                tooltip: 'إزالة',
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         );
                       }).toList(),
                       TextButton.icon(
                         onPressed: _addSignatory,
                         icon: const Icon(Icons.add),
-                        label: const Text('إضافة موقع جديد'),
+                        label: const Text('إضافة توقيع'),
                       ),
                     ],
                   ),
@@ -260,6 +346,36 @@ class _PrintPreviewDialogState extends State<PrintPreviewDialog> {
     );
   }
 
+  Future<void> _saveAndOpenPdf(BuildContext context) async {
+    // 1. Generate PDF
+    final pdfBytes = await widget.pdfBuilder(
+      currentSettings,
+      suffixController.text,
+    );
+
+    // 2. Pick File
+    String? outputFile = await FilePicker.platform.saveFile(
+      dialogTitle: 'حفظ التقرير بصيغة PDF',
+      fileName:
+          'Report_${DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now())}.pdf',
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    // 3. Save & Open
+    if (outputFile != null) {
+      if (!outputFile.endsWith('.pdf')) {
+        outputFile += '.pdf';
+      }
+      final file = File(outputFile);
+      await file.writeAsBytes(pdfBytes);
+
+      // Close dialog? User might want to keep it open.
+      // Let's just open the file.
+      await OpenFile.open(file.path);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -313,6 +429,21 @@ class _PrintPreviewDialogState extends State<PrintPreviewDialog> {
               canChangeOrientation: false,
               canChangePageFormat: false,
               canDebug: false,
+              allowPrinting:
+                  false, // Disable default Print to avoid system dialog
+              allowSharing: false,
+              actions: [
+                // Custom Print/Save Action
+                Builder(
+                  builder: (ctx) {
+                    return IconButton(
+                      icon: const Icon(Icons.print),
+                      tooltip: 'طباعة / حفظ PDF',
+                      onPressed: () => _saveAndOpenPdf(ctx),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ],

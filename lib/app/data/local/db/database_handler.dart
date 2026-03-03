@@ -9,7 +9,7 @@ class DatabaseHandler {
   static final DatabaseHandler instance = DatabaseHandler._privateConstructor();
 
   static Database? _database;
-  static const _dbVersion = 7; // <--- تعريف رقم الإصدار هنا لسهولة الوصول إليه
+  static const _dbVersion = 8; // <--- Database Version Incremented For Indexing
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -67,6 +67,9 @@ class DatabaseHandler {
     await _createBeneficiariesTable(db);
     await _createDisbursementTransactionsTable(db);
     await _createReturnTransactionsTable(db);
+
+    // --- إنشاء الفهارس (Indexes) لتسريع الاستعلامات ---
+    await _createDatabaseIndexes(db);
   }
 
   // --- 2. تعديل دالة الترقية onUpgrade ---
@@ -118,6 +121,11 @@ class DatabaseHandler {
       print("Database upgrading from version 6 to 7...");
       await _createReturnTransactionsTable(db);
       print("Database upgrade to version 7 completed.");
+    }
+    if (oldVersion < 8) {
+      print("Database upgrading from version 7 to 8...");
+      await _createDatabaseIndexes(db);
+      print("Database upgrade to version 8 completed.");
     }
   }
 
@@ -216,6 +224,26 @@ class DatabaseHandler {
         FOREIGN KEY (original_transaction_id) REFERENCES disbursement_transactions (id)
       )
     ''');
+  }
+
+  // --- ✅ جديد: دالة لإنشاء الفهارس (Indexes) لتسريع البحث والاستعلامات ---
+  Future<void> _createDatabaseIndexes(Database db) async {
+    // فهرس العمليات لتسريع البحث عبر الصنف
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_disbursement_transactions_item_id ON disbursement_transactions (item_id)',
+    );
+    // فهرس العمليات لتسريع البحث عبر الطلب
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_disbursement_transactions_order_id ON disbursement_transactions (order_id)',
+    );
+    // فهرس الطلبات لتسريع البحث عبر المستفيد
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_disbursement_orders_beneficiary_id ON disbursement_orders (beneficiary_id)',
+    );
+    // فهرس عمليات الإرجاع لتسريع البحث عبر العملية الأساسية
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_return_transactions_original_transaction_id ON return_transactions (original_transaction_id)',
+    );
   }
 
   /// إغلاق قاعدة البيانات للسماح بعمليات مثل الاستعادة
