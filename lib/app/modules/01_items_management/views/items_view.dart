@@ -252,80 +252,153 @@ class ItemsView extends StatelessWidget {
             ),
             const Divider(height: 1, color: Colors.black12),
             // --- الجزء السفلي: باقي التفاصيل ---
-            Expanded(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Wrap(
-                    spacing: 16,
-                    runSpacing: 10,
-                    children: [
-                      _buildDetailChip(
-                        'المتاح',
-                        item.quantity.toString(),
-                        Icons.inventory_2_rounded,
-                        theme,
-                        color: Colors.green.shade700,
-                      ),
-                      // ✅ جديد: الكمية المنصرفة
-                      Obx(() {
-                        final dispensed =
-                            controller.dispensedQuantitiesMap[item.id] ?? 0;
-                        return _buildDetailChip(
-                          'المنصرف',
-                          dispensed.toString(),
-                          Icons.outbound_rounded,
-                          theme,
-                          color: Colors.orange.shade700,
-                        );
-                      }),
-                      _buildDetailChip(
-                        'الانتهاء',
-                        DateFormat('yyyy-MM-dd').format(item.expiryDate),
-                        Icons.event_busy_outlined,
-                        theme,
-                        color: isExpired ? theme.colorScheme.error : null,
-                      ),
-                      if (item.batchNumber != null &&
-                          item.batchNumber!.isNotEmpty)
+            isListView
+                ? Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 10,
+                      children: [
                         _buildDetailChip(
-                          'التشغيلة',
-                          item.batchNumber!,
-                          Icons.tag,
+                          'المتاح',
+                          item.quantity.toString(),
+                          Icons.inventory_2_rounded,
                           theme,
+                          color: Colors.green.shade700,
                         ),
-                      if (item.unit != null && item.unit!.isNotEmpty)
+                        // ✅ جديد: الكمية المنصرفة
+                        Obx(() {
+                          final dispensed =
+                              controller.dispensedQuantitiesMap[item.id] ?? 0;
+                          return _buildDetailChip(
+                            'المنصرف',
+                            dispensed.toString(),
+                            Icons.outbound_rounded,
+                            theme,
+                            color: Colors.orange.shade700,
+                          );
+                        }),
                         _buildDetailChip(
-                          'الوحدة',
-                          item.unit!,
-                          Icons.widgets_outlined,
+                          'الانتهاء',
+                          DateFormat('yyyy-MM-dd').format(item.expiryDate),
+                          Icons.event_busy_outlined,
                           theme,
+                          color: isExpired ? theme.colorScheme.error : null,
                         ),
+                        if (item.batchNumber != null &&
+                            item.batchNumber!.isNotEmpty)
+                          _buildDetailChip(
+                            'التشغيلة',
+                            item.batchNumber!,
+                            Icons.tag,
+                            theme,
+                          ),
+                        if (item.unit != null && item.unit!.isNotEmpty)
+                          _buildDetailChip(
+                            'الوحدة',
+                            item.unit!,
+                            Icons.widgets_outlined,
+                            theme,
+                          ),
 
-                      // --- ✅ تم التصحيح والترتيب هنا ---
-                      if (item.formId != null &&
-                          item.formId! > 0 &&
-                          controller.itemFormsList.length >= item.formId!)
-                        _buildDetailChip(
-                          'الشكل',
-                          // نحصل على الاسم من القائمة باستخدام الـ ID
-                          controller.itemFormsList[item.formId! - 1],
-                          Icons.medication_outlined,
-                          theme,
-                        ),
+                        // --- ✅ تم التصحيح والترتيب هنا ---
+                        if (item.formId != null &&
+                            item.formId! > 0 &&
+                            controller.itemFormsList.length >= item.formId!)
+                          _buildDetailChip(
+                            'الشكل',
+                            // نحصل على الاسم من القائمة باستخدام الـ ID
+                            controller.itemFormsList[item.formId! - 1],
+                            Icons.medication_outlined,
+                            theme,
+                          ),
 
-                      if (item.itemCode != null && item.itemCode!.isNotEmpty)
-                        _buildDetailChip(
-                          'الكود',
-                          item.itemCode!,
-                          Icons.qr_code_2,
-                          theme,
+                        if (item.itemCode != null && item.itemCode!.isNotEmpty)
+                          _buildDetailChip(
+                            'الكود',
+                            item.itemCode!,
+                            Icons.qr_code_2,
+                            theme,
+                          ),
+                      ],
+                    ),
+                  )
+                : Flexible(
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Wrap(
+                          spacing: 16,
+                          runSpacing: 10,
+                          children: [
+                            _buildDetailChip(
+                              'المتاح',
+                              item.quantity.toString(),
+                              Icons.inventory_2_rounded,
+                              theme,
+                              color: Colors.green.shade700,
+                            ),
+                            // ✅ جديد: الكمية المنصرفة
+                            Obx(() {
+                              final dispensed =
+                                  controller.dispensedQuantitiesMap[item.id] ??
+                                  0;
+                              return _buildDetailChip(
+                                'المنصرف',
+                                dispensed.toString(),
+                                Icons.outbound_rounded,
+                                theme,
+                                color: Colors.orange.shade700,
+                              );
+                            }),
+                            _buildDetailChip(
+                              'الانتهاء',
+                              DateFormat('yyyy-MM-dd').format(item.expiryDate),
+                              Icons.event_busy_outlined,
+                              theme,
+                              color: isExpired ? theme.colorScheme.error : null,
+                            ),
+                            if (item.batchNumber != null &&
+                                item.batchNumber!.isNotEmpty)
+                              _buildDetailChip(
+                                'التشغيلة',
+                                item.batchNumber!,
+                                Icons.tag,
+                                theme,
+                              ),
+                            if (item.unit != null && item.unit!.isNotEmpty)
+                              _buildDetailChip(
+                                'الوحدة',
+                                item.unit!,
+                                Icons.widgets_outlined,
+                                theme,
+                              ),
+
+                            // --- ✅ تم التصحيح والترتيب هنا ---
+                            if (item.formId != null &&
+                                item.formId! > 0 &&
+                                controller.itemFormsList.length >= item.formId!)
+                              _buildDetailChip(
+                                'الشكل',
+                                // نحصل على الاسم من القائمة باستخدام الـ ID
+                                controller.itemFormsList[item.formId! - 1],
+                                Icons.medication_outlined,
+                                theme,
+                              ),
+
+                            if (item.itemCode != null &&
+                                item.itemCode!.isNotEmpty)
+                              _buildDetailChip(
+                                'الكود',
+                                item.itemCode!,
+                                Icons.qr_code_2,
+                                theme,
+                              ),
+                          ],
                         ),
-                    ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
