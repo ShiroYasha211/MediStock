@@ -94,9 +94,10 @@ class ItemReportGenerator {
         build: (context) => [
           _buildAdvancedBody(settings, boldFont, font, recipientSuffix),
           pw.SizedBox(height: 10),
-          settings.tableColumnMode == 'dual'
-              ? _buildDualColumnTable(items)
-              : _buildItemsTable(items),
+          if (settings.tableColumnMode == 'dual')
+            ..._buildDualColumnTable(items, settings.dualColumnRowsPerPage)
+          else
+            _buildItemsTable(items),
         ],
         footer: (context) => _buildFooter(context, settings, boldFont),
         header: (context) =>
@@ -377,9 +378,10 @@ class ItemReportGenerator {
         build: (context) => [
           _buildAdvancedBody(settings, boldFont, font, recipientSuffix),
           pw.SizedBox(height: 10),
-          settings.tableColumnMode == 'dual'
-              ? _buildDualColumnBeneficiaryTable(transactions)
-              : _buildBeneficiaryTable(transactions),
+          if (settings.tableColumnMode == 'dual')
+            ..._buildDualColumnBeneficiaryTable(transactions, settings.dualColumnRowsPerPage)
+          else
+            _buildBeneficiaryTable(transactions),
         ],
         footer: (context) => _buildFooter(context, settings, boldFont),
         header: (context) =>
@@ -434,102 +436,105 @@ class ItemReportGenerator {
     });
   }
 
-  static pw.Widget _buildDualColumnBeneficiaryTable(
+  /// Builds per-page dual-column tables for beneficiary reports.
+  /// Each page has [rowsPerPage] rows. Within each page, the right column
+  /// is numbered first (top to bottom), then the left column continues.
+  /// This ensures numbering flows correctly across page breaks.
+  static List<pw.Widget> _buildDualColumnBeneficiaryTable(
     List<BeneficiaryReportItem> transactions,
+    int rowsPerPage,
   ) {
-    // Manually Reverse Order for RTL simulation in LTR Table
-    // Visual Order on Paper (RTL): [  Left Item (Cols 0-4) ]  [ Right Item (Cols 5-9) ]
-    // Desired Cols in Block (RTL): Notes | Qty | Unit | Name | M
-    // Actual LTR Cols in Block:    Notes | Qty | Unit | Name | M
-    // (Wait, LTR: Col 0 is Left. So [Notes...M] renders: Notes(L)..M(R).
-    //  Visually: Notes | Qty | Unit | Name | M.
-    //  RTL Reader sees: M (End) -> Name -> Unit -> Qty -> Notes (Start).
-    //  User said M is at "End" (Left?).
-    //  If I want M at Right side of Block: Block should be [Notes, Qty, Unit, Name, M].
-    //  Then M is at Right.
-    //  If User said M is at End (Left), it implies my previous [M, Name...Notes] put M at Left.
-    //  So [Notes...M] puts M at Right. Correct.
-
     final baseHeaders = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
     final headers = [...baseHeaders, ...baseHeaders];
+    final itemsPerPage = rowsPerPage * 2; // 2 columns
+    final tables = <pw.Widget>[];
+    int globalIndex = 0;
 
-    // Split data
-    final half = (transactions.length / 2).ceil();
-    final data = <List<String>>[];
+    while (globalIndex < transactions.length) {
+      // Take a page-sized chunk of items
+      final end = (globalIndex + itemsPerPage) > transactions.length
+          ? transactions.length
+          : globalIndex + itemsPerPage;
+      final chunk = transactions.sublist(globalIndex, end);
 
-    for (int i = 0; i < half; i++) {
-      // Right Side Item (First Half) -> Goes to Cols 5-9 (Visual Right)
-      final itemRight = transactions[i];
-      final rowRight = [
-        itemRight.notes ?? '',
-        itemRight.quantity.toString(),
-        itemRight.unit ?? '-',
-        itemRight.itemName,
-        (i + 1).toString(),
-      ];
+      // Split this page's chunk into two halves:
+      // First half -> Right column, Second half -> Left column
+      final half = (chunk.length / 2).ceil();
+      final data = <List<String>>[];
 
-      // Left Side Item (Second Half) -> Goes to Cols 0-4 (Visual Left)
-      List<String> rowLeft;
-      if (i + half < transactions.length) {
-        final itemLeft = transactions[i + half];
-        rowLeft = [
-          itemLeft.notes ?? '',
-          itemLeft.quantity.toString(),
-          itemLeft.unit ?? '-',
-          itemLeft.itemName,
-          (i + half + 1).toString(),
+      for (int i = 0; i < half; i++) {
+        // Right column item (first half of chunk)
+        final itemRight = chunk[i];
+        final rowRight = [
+          itemRight.notes ?? '',
+          itemRight.quantity.toString(),
+          itemRight.unit ?? '-',
+          itemRight.itemName,
+          (globalIndex + i + 1).toString(),
         ];
-      } else {
-        rowLeft = ['', '', '', '', ''];
+
+        // Left column item (second half of chunk)
+        List<String> rowLeft;
+        if (i + half < chunk.length) {
+          final itemLeft = chunk[i + half];
+          rowLeft = [
+            itemLeft.notes ?? '',
+            itemLeft.quantity.toString(),
+            itemLeft.unit ?? '-',
+            itemLeft.itemName,
+            (globalIndex + i + half + 1).toString(),
+          ];
+        } else {
+          rowLeft = ['', '', '', '', ''];
+        }
+
+        data.add([...rowLeft, ...rowRight]);
       }
 
-      // Add: [Left Block, Right Block] -> [rowLeft, rowRight]
-      data.add([...rowLeft, ...rowRight]);
+      tables.add(
+        pw.Table.fromTextArray(
+          cellAlignment: pw.Alignment.centerRight,
+          headerStyle: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.white,
+            fontSize: 8,
+          ),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+          headers: headers,
+          data: data,
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1.5),
+            2: const pw.FlexColumnWidth(1.5),
+            3: const pw.FlexColumnWidth(4),
+            4: const pw.FlexColumnWidth(0.8),
+            5: const pw.FlexColumnWidth(3),
+            6: const pw.FlexColumnWidth(1.5),
+            7: const pw.FlexColumnWidth(1.5),
+            8: const pw.FlexColumnWidth(4),
+            9: const pw.FlexColumnWidth(0.8),
+          },
+          cellAlignments: {
+            0: pw.Alignment.centerRight,
+            1: pw.Alignment.center,
+            2: pw.Alignment.center,
+            3: pw.Alignment.centerRight,
+            4: pw.Alignment.center,
+            5: pw.Alignment.centerRight,
+            6: pw.Alignment.center,
+            7: pw.Alignment.center,
+            8: pw.Alignment.centerRight,
+            9: pw.Alignment.center,
+          },
+          border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
+        ),
+      );
+
+      globalIndex = end;
     }
 
-    return pw.Table.fromTextArray(
-      cellAlignment: pw.Alignment.centerRight,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
-        fontSize: 8,
-      ),
-      cellStyle: const pw.TextStyle(fontSize: 8),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      // rowDecoration removed to avoid conflict
-      headers: headers,
-      data: data,
-      columnWidths: {
-        // Left Side (Cols 0-4)
-        0: const pw.FlexColumnWidth(3), // ملاحظات
-        1: const pw.FlexColumnWidth(1.5), // الكمية
-        2: const pw.FlexColumnWidth(1.5), // الوحدة
-        3: const pw.FlexColumnWidth(4), // اسم الصنف
-        4: const pw.FlexColumnWidth(0.8), // م
-        // Right Side (Cols 5-9)
-        5: const pw.FlexColumnWidth(3), // ملاحظات
-        6: const pw.FlexColumnWidth(1.5), // الكمية
-        7: const pw.FlexColumnWidth(1.5), // الوحدة
-        8: const pw.FlexColumnWidth(4), // اسم الصنف
-        9: const pw.FlexColumnWidth(0.8), // م
-      },
-      cellAlignments: {
-        // All Right Aligned or Center?
-        // Notes: Right
-        0: pw.Alignment.centerRight,
-        1: pw.Alignment.center,
-        2: pw.Alignment.center,
-        3: pw.Alignment.centerRight,
-        4: pw.Alignment.center,
-
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.center,
-        7: pw.Alignment.center,
-        8: pw.Alignment.centerRight,
-        9: pw.Alignment.center,
-      },
-      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
-    );
+    return tables;
   }
 
   static pw.Widget _buildBeneficiaryTable(
@@ -610,86 +615,95 @@ class ItemReportGenerator {
     );
   }
 
-  static pw.Widget _buildDualColumnTable(List<ItemModel> items) {
-    // Manually Reverse Order for RTL simulation
-    // Desired Cols (RTL): Notes | Qty | Unit | Name | M
-    // Actual LTR Cols:    Notes | Qty | Unit | Name | M
-
+  /// Builds per-page dual-column tables for items reports.
+  /// Same logic as beneficiary version - per-page half-split.
+  static List<pw.Widget> _buildDualColumnTable(List<ItemModel> items, int rowsPerPage) {
     final baseHeaders = ['ملاحظات', 'الكمية', 'الوحدة', 'اسم الصنف', 'م'];
     final headers = [...baseHeaders, ...baseHeaders];
+    final itemsPerPage = rowsPerPage * 2;
+    final tables = <pw.Widget>[];
+    int globalIndex = 0;
 
-    // Split data
-    final half = (items.length / 2).ceil();
-    final data = <List<String>>[];
+    while (globalIndex < items.length) {
+      final end = (globalIndex + itemsPerPage) > items.length
+          ? items.length
+          : globalIndex + itemsPerPage;
+      final chunk = items.sublist(globalIndex, end);
 
-    for (int i = 0; i < half; i++) {
-      // Right Side Item (First Half) -> Cols 5-9
-      final itemRight = items[i];
-      final rowRight = [
-        itemRight.notes ?? '',
-        itemRight.quantity.toString(),
-        itemRight.unit ?? '-',
-        itemRight.name,
-        (i + 1).toString(),
-      ];
+      final half = (chunk.length / 2).ceil();
+      final data = <List<String>>[];
 
-      // Left Side Item (Second Half) -> Cols 0-4
-      List<String> rowLeft;
-      if (i + half < items.length) {
-        final itemLeft = items[i + half];
-        rowLeft = [
-          itemLeft.notes ?? '',
-          itemLeft.quantity.toString(),
-          itemLeft.unit ?? '-',
-          itemLeft.name,
-          (i + half + 1).toString(),
+      for (int i = 0; i < half; i++) {
+        final itemRight = chunk[i];
+        final rowRight = [
+          itemRight.notes ?? '',
+          itemRight.quantity.toString(),
+          itemRight.unit ?? '-',
+          itemRight.name,
+          (globalIndex + i + 1).toString(),
         ];
-      } else {
-        rowLeft = ['', '', '', '', ''];
+
+        List<String> rowLeft;
+        if (i + half < chunk.length) {
+          final itemLeft = chunk[i + half];
+          rowLeft = [
+            itemLeft.notes ?? '',
+            itemLeft.quantity.toString(),
+            itemLeft.unit ?? '-',
+            itemLeft.name,
+            (globalIndex + i + half + 1).toString(),
+          ];
+        } else {
+          rowLeft = ['', '', '', '', ''];
+        }
+
+        data.add([...rowLeft, ...rowRight]);
       }
 
-      data.add([...rowLeft, ...rowRight]);
+      tables.add(
+        pw.Table.fromTextArray(
+          cellAlignment: pw.Alignment.centerRight,
+          headerStyle: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.white,
+            fontSize: 8,
+          ),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+          headers: headers,
+          data: data,
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1.5),
+            2: const pw.FlexColumnWidth(1.5),
+            3: const pw.FlexColumnWidth(4),
+            4: const pw.FlexColumnWidth(0.8),
+            5: const pw.FlexColumnWidth(3),
+            6: const pw.FlexColumnWidth(1.5),
+            7: const pw.FlexColumnWidth(1.5),
+            8: const pw.FlexColumnWidth(4),
+            9: const pw.FlexColumnWidth(0.8),
+          },
+          cellAlignments: {
+            0: pw.Alignment.centerRight,
+            1: pw.Alignment.center,
+            2: pw.Alignment.center,
+            3: pw.Alignment.centerRight,
+            4: pw.Alignment.center,
+            5: pw.Alignment.centerRight,
+            6: pw.Alignment.center,
+            7: pw.Alignment.center,
+            8: pw.Alignment.centerRight,
+            9: pw.Alignment.center,
+          },
+          border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
+        ),
+      );
+
+      globalIndex = end;
     }
 
-    return pw.Table.fromTextArray(
-      cellAlignment: pw.Alignment.centerRight,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
-        fontSize: 8,
-      ),
-      cellStyle: const pw.TextStyle(fontSize: 8),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      headers: headers,
-      data: data,
-      columnWidths: {
-        // Left Side
-        0: const pw.FlexColumnWidth(3), // ملاحظات
-        1: const pw.FlexColumnWidth(1.5), // الكمية
-        2: const pw.FlexColumnWidth(1.5), // الوحدة
-        3: const pw.FlexColumnWidth(4), // اسم الصنف
-        4: const pw.FlexColumnWidth(0.8), // م
-        // Right Side
-        5: const pw.FlexColumnWidth(3),
-        6: const pw.FlexColumnWidth(1.5),
-        7: const pw.FlexColumnWidth(1.5),
-        8: const pw.FlexColumnWidth(4),
-        9: const pw.FlexColumnWidth(0.8),
-      },
-      cellAlignments: {
-        0: pw.Alignment.centerRight,
-        1: pw.Alignment.center,
-        2: pw.Alignment.center,
-        3: pw.Alignment.centerRight,
-        4: pw.Alignment.center,
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.center,
-        7: pw.Alignment.center,
-        8: pw.Alignment.centerRight,
-        9: pw.Alignment.center,
-      },
-      border: pw.TableBorder.all(color: PdfColors.grey600, width: 1.0),
-    );
+    return tables;
   }
 
   static pw.Widget _buildItemsTable(List<ItemModel> items) {

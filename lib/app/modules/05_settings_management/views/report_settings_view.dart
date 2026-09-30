@@ -277,6 +277,64 @@ class ReportSettingsView extends GetView<SettingsController> {
                                     },
                                   ),
                                 ),
+
+                                // Show rows-per-page control only when dual column is active
+                                if (settings.tableColumnMode == 'dual') ...[
+                                  const SizedBox(height: 12),
+                                  _buildGlassySection(
+                                    theme: theme,
+                                    title: 'عدد الصفوف في كل صفحة (وضع العمودين)',
+                                    icon: Icons.table_rows_outlined,
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.view_agenda_outlined, size: 20),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '${settings.dualColumnRowsPerPage} صف',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Text(
+                                              '(${settings.dualColumnRowsPerPage * 2} صنف في الصفحة)',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: theme.colorScheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Slider(
+                                          value: settings.dualColumnRowsPerPage.toDouble(),
+                                          min: 10,
+                                          max: 35,
+                                          divisions: 25,
+                                          label: '${settings.dualColumnRowsPerPage} صف',
+                                          activeColor: theme.colorScheme.primary,
+                                          onChanged: (val) {
+                                            settings.dualColumnRowsPerPage = val.round();
+                                            controller.reportSettings.refresh();
+                                          },
+                                          onChangeEnd: (val) {
+                                            controller.saveReportSettings();
+                                          },
+                                        ),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('10', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                                            Text('35', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+
                                 const SizedBox(height: 24),
 
                                 _buildGlassySection(

@@ -86,6 +86,7 @@ class ReportSettingsModel {
   double marginLeft;
   double marginRight;
   double recipientSuffixMargin; // ✅ Margin for the footer suffix (المحترم)
+  int dualColumnRowsPerPage; // ✅ Number of rows per page in dual-column mode
 
   ReportSettingsModel({
     required this.headerRightLines,
@@ -112,6 +113,7 @@ class ReportSettingsModel {
     this.marginRight = 1.0,
     this.recipientSuffixMargin = 50.0, // Default to 50 logical pixels
     this.signaturesOnFirstPage = false, // Default to Last Page
+    this.dualColumnRowsPerPage = 20, // Default 20 rows per page
   });
 
   factory ReportSettingsModel.defaults() {
@@ -227,6 +229,7 @@ class ReportSettingsModel {
       marginRight: 1.0,
       recipientSuffixMargin: 50.0,
       signaturesOnFirstPage: false,
+      dualColumnRowsPerPage: 20,
     );
   }
 
@@ -256,6 +259,7 @@ class ReportSettingsModel {
       'marginRight': marginRight,
       'recipientSuffixMargin': recipientSuffixMargin,
       'signaturesOnFirstPage': signaturesOnFirstPage,
+      'dualColumnRowsPerPage': dualColumnRowsPerPage,
     };
   }
 
@@ -398,6 +402,7 @@ class ReportSettingsModel {
       marginRight: (json['marginRight'] ?? 1.0).toDouble(),
       recipientSuffixMargin: (json['recipientSuffixMargin'] ?? 50.0).toDouble(),
       signaturesOnFirstPage: json['signaturesOnFirstPage'] ?? false,
+      dualColumnRowsPerPage: json['dualColumnRowsPerPage'] ?? 20,
     );
   }
 }
